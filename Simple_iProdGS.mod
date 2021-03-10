@@ -6,6 +6,9 @@ MODULE Simple_iProdGS
 ! https://github.com/KrzysztofOle/RAPID_ABB/blob/21c66f2aabd7a47c91d81cea9138b9c671ab3c0d/Simple_iProdGS.mod
 !   
 
+!           komentarz222222
+!           komentarz
+
     !
     !rekord przechowujacy ramke podzielona na parametry
     RECORD frameTCP
