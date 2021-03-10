@@ -57,8 +57,6 @@ MODULE Simple_iProdGS
     RECORD operacjaProdGS
         num id_operacji;
         string opis;
-        string lok1;
-        string lok2;
     ENDRECORD
 
     PERS bool TCPLogSwitch:=TRUE;
@@ -114,42 +112,42 @@ MODULE Simple_iProdGS
     CONST operacjaProdGS OP_sczepianiePlaszcza:=             [6701, "Sczepianie plaszcza",                                            sT_robPlaszcz,  sT_empty];
     CONST operacjaProdGS OP_spawaniePlaszcza:=               [6702, "Spawanie plaszcza",                                              sT_robPlaszcz,  sT_empty];
     !! 
-    CONST operacjaProdGS OP_sczepianieWieszakGorny :=        [6801, "Wykonanie spoiny sczepnej Upper Bracket do Outer Shell",         sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieWieszakDolny :=        [6802, "Wykonanie spoiny sczepnej Lower Bracket do Outer Shell",         sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieWieszakSpecjalny :=    [6803, "Wykonanie spoiny sczepnej Wieszak Specialny do Outer Shell",     sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieUchwytRuryGorny :=     [6804, "Wykonanie spoiny sczepnej Upper Tubes Support do Outer Shell",   sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieUchwytRuryDolny :=     [6805, "Wykonanie spoiny sczepnej Lower Tubes Support do Outer Shell",   sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieWieszakMiski1 :=       [6806, "Wykonanie spoiny sczepnej Wieszak Miski 1 do Outer Shell",       sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieWieszakMiski2 :=       [6807, "Wykonanie spoiny sczepnej Wieszak Miski 2 do Outer Shell",       sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieWieszakMiski3 :=       [6808, "Wykonanie spoiny sczepnej Wieszak Miski 3 do Outer Shell",       sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieWieszakMiski4 :=       [6809, "Wykonanie spoiny sczepnej Wieszak Miski 4 do Outer Shell",       sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieWieszakMiski5 :=       [6810, "Wykonanie spoiny sczepnej Wieszak Miski 5 do Outer Shell",       sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieWieszakMiski6 :=       [6811, "Wykonanie spoiny sczepnej Wieszak Miski 6 do Outer Shell",       sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieWieszakTransportowy := [6812, "Wykonanie spoiny sczepnej Wieszak Transportowy do Outer Shell",  sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieKrociecInlet1 :=       [6813, "Wykonanie spoiny sczepnej Water Nozzle Inlet 1 do Outer Shell",  sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieKrociecInlet2 :=       [6814, "Wykonanie spoiny sczepnej Water Nozzle Inlet 2 do Outer Shell",  sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieKrociecOutlet1 :=      [6815, "Wykonanie spoiny sczepnej Water Nozzle Outlet 1 do Outer Shell", sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieKrociecOutlet2 :=      [6816, "Wykonanie spoiny sczepnej Water Nozzle Outlet 2 do Outer Shell", sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieKrociecCzujkaDolna :=  [6817, "Wykonanie spoiny sczepnej Lower TC Port  do Outer Shell",        sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_sczepianieKrociecCzujkaGorna :=  [6818, "Wykonanie spoiny sczepnej Upper TC Port  do Outer Shell",        sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieWieszakGorny :=          [6851, "Spawanie Upper Bracket do Outer Shell",                          sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieWieszakDolny :=          [6852, "Spawanie Lower Bracket do Outer Shell",                          sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieWieszakSpecjalny :=      [6853, "Spawanie Wieszak Specialny do Outer Shell",                      sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieUchwytRuryGorny :=       [6854, "Spawanie Upper Tubes Support do Outer Shell",                    sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieUchwytRuryDolny :=       [6855, "Spawanie Lower Tubes Support do Outer Shell",                    sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieWieszakMiski1 :=         [6856, "Spawanie Wieszak Miski 1 do Outer Shell",                        sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieWieszakMiski2 :=         [6857, "Spawanie Wieszak Miski 2 do Outer Shell",                        sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieWieszakMiski3 :=         [6858, "Spawanie Wieszak Miski 3 do Outer Shell",                        sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieWieszakMiski4 :=         [6859, "Spawanie Wieszak Miski 4 do Outer Shell",                        sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieWieszakMiski5 :=         [6860, "Spawanie Wieszak Miski 5 do Outer Shell",                        sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieWieszakMiski6 :=         [6861, "Spawanie Wieszak Miski 6 do Outer Shell",                        sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieWieszakTransportowy :=   [6862, "Spawanie Wieszak Transportowy do Outer Shell",                   sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieKrociecInlet1 :=         [6863, "Spawanie Water Nozzle Inlet 1 do Outer Shell",                   sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieKrociecInlet2 :=         [6864, "Spawanie Water Nozzle Inlet 2 do Outer Shell",                   sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieKrociecOutlet1 :=        [6865, "Spawanie Water Nozzle Outlet 1 do Outer Shell",                  sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieKrociecOutlet2 :=        [6866, "Spawanie Water Nozzle Outlet 2 do Outer Shell",                  sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieKrociecCzujkaDolna :=    [6867, "Spawanie Lower TC Port  do Outer Shell",                         sT_robGalantL,  sT_robGalantR];
-    CONST operacjaProdGS OP_spawanieKrociecCzujkaGorna :=    [6868, "Spawanie Upper TC Port  do Outer Shell",                         sT_robGalantL,  sT_robGalantR];
+    CONST operacjaProdGS OP_sczepianieWieszakGorny :=        [6801, "Wykonanie spoiny sczepnej Upper Bracket do Outer Shell",         ];
+    CONST operacjaProdGS OP_sczepianieWieszakDolny :=        [6802, "Wykonanie spoiny sczepnej Lower Bracket do Outer Shell",         ];
+    CONST operacjaProdGS OP_sczepianieWieszakSpecjalny :=    [6803, "Wykonanie spoiny sczepnej Wieszak Specialny do Outer Shell",     ];
+    CONST operacjaProdGS OP_sczepianieUchwytRuryGorny :=     [6804, "Wykonanie spoiny sczepnej Upper Tubes Support do Outer Shell",   ];
+    CONST operacjaProdGS OP_sczepianieUchwytRuryDolny :=     [6805, "Wykonanie spoiny sczepnej Lower Tubes Support do Outer Shell",   ];
+    CONST operacjaProdGS OP_sczepianieWieszakMiski1 :=       [6806, "Wykonanie spoiny sczepnej Wieszak Miski 1 do Outer Shell",       ];
+    CONST operacjaProdGS OP_sczepianieWieszakMiski2 :=       [6807, "Wykonanie spoiny sczepnej Wieszak Miski 2 do Outer Shell",       ];
+    CONST operacjaProdGS OP_sczepianieWieszakMiski3 :=       [6808, "Wykonanie spoiny sczepnej Wieszak Miski 3 do Outer Shell",       ];
+    CONST operacjaProdGS OP_sczepianieWieszakMiski4 :=       [6809, "Wykonanie spoiny sczepnej Wieszak Miski 4 do Outer Shell",       ];
+    CONST operacjaProdGS OP_sczepianieWieszakMiski5 :=       [6810, "Wykonanie spoiny sczepnej Wieszak Miski 5 do Outer Shell",       ];
+    CONST operacjaProdGS OP_sczepianieWieszakMiski6 :=       [6811, "Wykonanie spoiny sczepnej Wieszak Miski 6 do Outer Shell",       ];
+    CONST operacjaProdGS OP_sczepianieWieszakTransportowy := [6812, "Wykonanie spoiny sczepnej Wieszak Transportowy do Outer Shell",  ];
+    CONST operacjaProdGS OP_sczepianieKrociecInlet1 :=       [6813, "Wykonanie spoiny sczepnej Water Nozzle Inlet 1 do Outer Shell",  ];
+    CONST operacjaProdGS OP_sczepianieKrociecInlet2 :=       [6814, "Wykonanie spoiny sczepnej Water Nozzle Inlet 2 do Outer Shell",  ];
+    CONST operacjaProdGS OP_sczepianieKrociecOutlet1 :=      [6815, "Wykonanie spoiny sczepnej Water Nozzle Outlet 1 do Outer Shell", ];
+    CONST operacjaProdGS OP_sczepianieKrociecOutlet2 :=      [6816, "Wykonanie spoiny sczepnej Water Nozzle Outlet 2 do Outer Shell", ];
+    CONST operacjaProdGS OP_sczepianieKrociecCzujkaDolna :=  [6817, "Wykonanie spoiny sczepnej Lower TC Port  do Outer Shell",        ];
+    CONST operacjaProdGS OP_sczepianieKrociecCzujkaGorna :=  [6818, "Wykonanie spoiny sczepnej Upper TC Port  do Outer Shell",        ];
+    CONST operacjaProdGS OP_spawanieWieszakGorny :=          [6851, "Spawanie Upper Bracket do Outer Shell",                          ];
+    CONST operacjaProdGS OP_spawanieWieszakDolny :=          [6852, "Spawanie Lower Bracket do Outer Shell",                          ];
+    CONST operacjaProdGS OP_spawanieWieszakSpecjalny :=      [6853, "Spawanie Wieszak Specialny do Outer Shell",                      ];
+    CONST operacjaProdGS OP_spawanieUchwytRuryGorny :=       [6854, "Spawanie Upper Tubes Support do Outer Shell",                    ];
+    CONST operacjaProdGS OP_spawanieUchwytRuryDolny :=       [6855, "Spawanie Lower Tubes Support do Outer Shell",                    ];
+    CONST operacjaProdGS OP_spawanieWieszakMiski1 :=         [6856, "Spawanie Wieszak Miski 1 do Outer Shell",                        ];
+    CONST operacjaProdGS OP_spawanieWieszakMiski2 :=         [6857, "Spawanie Wieszak Miski 2 do Outer Shell",                        ];
+    CONST operacjaProdGS OP_spawanieWieszakMiski3 :=         [6858, "Spawanie Wieszak Miski 3 do Outer Shell",                        ];
+    CONST operacjaProdGS OP_spawanieWieszakMiski4 :=         [6859, "Spawanie Wieszak Miski 4 do Outer Shell",                        ];
+    CONST operacjaProdGS OP_spawanieWieszakMiski5 :=         [6860, "Spawanie Wieszak Miski 5 do Outer Shell",                        ];
+    CONST operacjaProdGS OP_spawanieWieszakMiski6 :=         [6861, "Spawanie Wieszak Miski 6 do Outer Shell",                        ];
+    CONST operacjaProdGS OP_spawanieWieszakTransportowy :=   [6862, "Spawanie Wieszak Transportowy do Outer Shell",                   ];
+    CONST operacjaProdGS OP_spawanieKrociecInlet1 :=         [6863, "Spawanie Water Nozzle Inlet 1 do Outer Shell",                   ];
+    CONST operacjaProdGS OP_spawanieKrociecInlet2 :=         [6864, "Spawanie Water Nozzle Inlet 2 do Outer Shell",                   ];
+    CONST operacjaProdGS OP_spawanieKrociecOutlet1 :=        [6865, "Spawanie Water Nozzle Outlet 1 do Outer Shell",                  ];
+    CONST operacjaProdGS OP_spawanieKrociecOutlet2 :=        [6866, "Spawanie Water Nozzle Outlet 2 do Outer Shell",                  ];
+    CONST operacjaProdGS OP_spawanieKrociecCzujkaDolna :=    [6867, "Spawanie Lower TC Port  do Outer Shell",                         ];
+    CONST operacjaProdGS OP_spawanieKrociecCzujkaGorna :=    [6868, "Spawanie Upper TC Port  do Outer Shell",                         ];
 
     
     
@@ -806,13 +804,9 @@ MODULE Simple_iProdGS
     ENDPROC
     
     PROC iProdGS_DONE_(operacjaProdGS operacjaProd,string ID_miejsca,string Index,num ile)
-        ! sprawdzamy czy operacja dozwolona jest dla tego miejsca
-        IF operacjaProd.lok1=ID_miejsca OR operacjaProd.lok2=ID_miejsca THEN
+        
             iProdGS_DONE operacjaProd.id_operacji, ID_miejsca, Index, ile;    
-        ELSE
-            ErrWrite "iProdGS:: Operacja: "+operacjaProd.opis+" nie jest dozolona dla: "+ ID_miejsca,"";
-            Stop;
-        ENDIF
+            
     ENDPROC
 
     !! funkcja tworzy ramke typu string z zestawu parametrow typu string lub num (maksymalnie 10 parametrow)
