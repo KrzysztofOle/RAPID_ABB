@@ -55,6 +55,7 @@ MODULE Simple_iProdGS
         num retryNo;
     ENDRECORD
     
+    !! RECORD operacjaProdGS - definicja operacji produkcyjnej
     RECORD operacjaProdGS
         num id_operacji;
         string opis;
