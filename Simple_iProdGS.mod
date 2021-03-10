@@ -1,6 +1,6 @@
 MODULE Simple_iProdGS
     !
-        !rekord przechowujacy ramke podzielona na parametry
+    !rekord przechowujacy ramke podzielona na parametry
     RECORD frameTCP
         string ID;
         string p1;
@@ -20,7 +20,7 @@ MODULE Simple_iProdGS
         string p15;
         num paramNo;
     ENDRECORD
-    
+
     !! IProdCommand - przechowuje specyfikacje rozkazow
     RECORD IProdGSCommand
         string Komenda;
@@ -31,7 +31,7 @@ MODULE Simple_iProdGS
         !! ile parametrow bedzie w odpowiedzi
         num ileParOdp;
     ENDRECORD
-    
+
     !superiorClientTCP - przechowuje parametry polaczenia. Zmienne pozwalajace na utworzenie obiektu clientTCP, a w konsekwencji polaczenia z serwerem
     RECORD superiorClientTCP
         string ipAddress;
@@ -45,9 +45,9 @@ MODULE Simple_iProdGS
         !! Znak rozdzielajacy parametry
         num retryNo;
     ENDRECORD
-    
+
     PERS bool TCPLogSwitch:=TRUE;
-    
+
     ! komunikacja z iProdGS na 1 watku
     !
     LOCAL VAR socketstatus state;
@@ -58,32 +58,62 @@ MODULE Simple_iProdGS
     LOCAL VAR string frameRecieved;
     LOCAL VAR string singleFrame;
     LOCAL VAR num commandInNum;
-    
+
     ! przelacznik czy serwer ma odpowiadac echcem
     LOCAL CONST bool echo:=FALSE;
-    
+
     LOCAL CONST IProdGSCommand iProdGSCommandList{5}:=[["GET_PLAN",0,"PLAN_RESULT",4],
                                             ["WHAT_ABOUT",1,"ABOUT_RESULT",3],
                                             ["SKIP_ELEMENT",1,"SKIP_RESULT",1],
                                             ["DONE",4,"DONE_OK",0],
                                             ["MOVE",2,"MOVE_OK",0]];
-    
-        !! @6.1 okreslenie danych dla  serwera
+
+    !! @6.1 okreslenie danych dla  serwera
     LOCAL CONST superiorClientTCP clientTCP:=["10.16.48.129",9197,"","q",",",10];
-    LOCAL CONST num GET_PLAN:=1;
-    LOCAL CONST num WHAT_ABOUT:=2;
-    LOCAL CONST num SKIP_ELEMENT:=3;
-    LOCAL CONST num DONE:=4;
-    LOCAL CONST num MOVE:=5;                                            
-                                            
-    
+
+
+    CONST num GET_PLAN:=1;
+    CONST num WHAT_ABOUT:=2;
+    CONST num SKIP_ELEMENT:=3;
+    CONST num DONE:=4;
+    CONST num MOVE:=5;
+
+    PERS string temp_idPKW:="DE.ANPG275825";
+    PERS num temp_ilePKW:=12;
+    PERS string temp_idWym:="DE.ANPG275825";
+    PERS num temp_ileWym:=3;
+
+    !Stale przechowujace ID stanowisk
+    CONST string sT_robBig:="RB";
+    CONST string sT_alejkaKJ:="ALK";
+    CONST string sT_robWklad:="SPWK";
+    CONST string sT_robPrasa:="PRS";
+    CONST string sT_robPlaszcz:="SPLA";
+    CONST string sT_robGalantL:="GL";
+    CONST string sT_robGalantR:="GP";
+    CONST string sT_buforPKW:="BPKW";
+    CONST string sT_buforPKWP:="BPKWP";
+    CONST string sT_buforSolniczki:="BSOL";
+    CONST string sT_finalConveyor:="KNC";
+
+    PERS string temp_id:="";
+    PERS bool temp_hold:=FALSE;
+    PERS num temp_idOper:=6700;
+    PERS string temp_partIndex:="DE.ACPR247300";
+    PERS string temp_placeId:="";
+    PERS num temp_howManyParts:=0;
+    PERS bool temp_continue:=FALSE;
+    PERS string temp_sourceStId:="";
+    PERS string temp_destStId:="";
+
+
     ! otwiera polaczenie z serwerem iProdGS
     LOCAL PROC iProdGS_open()
-        
+
         ! na poczatek sprawdzamy stan polaczenia
         state:=SocketGetStatus(superiorSocket);
         WHILE state<>SOCKET_CONNECTED DO
-            
+
             IF state=SOCKET_CLOSED THEN
                 !!TPWrite "Status: Closed --> SocketCreate";
                 ! proba utworzenia socketa
@@ -101,24 +131,24 @@ MODULE Simple_iProdGS
             IF state<>SOCKET_CONNECTED THEN
                 ! zamykamy by ponowic probe otwarcia
                 SocketClose superiorSocket;
-                WaitTime 3;    
+                WaitTime 3;
             ENDIF
-            
+
         ENDWHILE
-        ErrWrite \I,"Simple_iProdGS:: OPEN","";
+        ErrWrite\I,"Simple_iProdGS:: OPEN","";
     ENDPROC
-    
+
     LOCAL PROC iProdGS_close()
         state:=SocketGetStatus(superiorSocket);
         IF state<>SOCKET_CLOSED THEN
             ! zamykamy
             SocketClose superiorSocket;
-            ErrWrite \I,"Simple_iProdGS:: CLOSE","";
+            ErrWrite\I,"Simple_iProdGS:: CLOSE","";
         ELSE
-            ErrWrite \I,"Simple_iProdGS:: nie ma potrzeby robic CLOSE","";
+            ErrWrite\I,"Simple_iProdGS:: nie ma potrzeby robic CLOSE","";
         ENDIF
     ENDPROC
-    
+
     LOCAL PROC iProdGS_send(string ramka)
         VAR num sendFrameState;
         VAR num currentRetryNo;
@@ -146,7 +176,7 @@ MODULE Simple_iProdGS
                     !! @4 odebranie od serwera ramki z danymi -> serwer odeslal ramke, ktora odebral od urzadzenia w celu sprawdzenia poprawnosci danych
                     !!SocketReceive nazwa_punktu_dostepu_od_ktorego_pochodza_dane\Str:=miejsce_w_ktorym_maja_zostac_przechowane_przeslane_dane\Time:=Maksymalny_czas_oczekiwania_na_odpowiez
                     sendFrameState:=10;
-                    
+
                     IF echo THEN
                         SocketReceive superiorSocket\Str:=frameRecieved\Time:=10;
                         ! + \NoRecBytes    
@@ -154,7 +184,7 @@ MODULE Simple_iProdGS
                         ! przepisujemy by oszukac system
                         frameRecieved:=ramka;
                     ENDIF
-                    
+
                     sendFrameState:=11;
                     IF TCPLogSwitch TPWrite "recive2: "+frameRecieved;
                     currentRetryNo:=currentRetryNo+1;
@@ -183,7 +213,7 @@ MODULE Simple_iProdGS
 
 
     ENDPROC
-    
+
     LOCAL FUNC frameTCP iProdGS_reciveFrame()
         VAR num found;
         VAR num recordNo;
@@ -235,9 +265,9 @@ MODULE Simple_iProdGS
                 reciveFrameState:=10;
                 IF TCPLogSwitch THEN
                     TPWrite "Potwierdzamy: "+singleFrame;
-                    ErrWrite \I,"reciveFrame: ","Potwierdzamy: "+singleFrame;
+                    ErrWrite\I,"reciveFrame: ","Potwierdzamy: "+singleFrame;
                 ENDIF
-                SocketSend superiorSocket\Str:=singleFrame;
+                IF echo SocketSend superiorSocket\Str:=singleFrame;
                 reciveFrameState:=11;
                 ! extrakcja parametrow do ramki
                 iProdGS_extractFrame singleFrame,result;
@@ -261,7 +291,7 @@ MODULE Simple_iProdGS
                         !! nieprawidlowa ilosc parametow
                         ErrWrite "ERROR::ClientStringTCP","Nie prawidlowa ilosc parametrow w ramce rozkazu. recivedtFrameTCP.paramNo = "+NumToStr(result.paramNo,0)\RL2:="Spodziewano sie iProdGSCommandList{recordNo}.ileParOdp = "+NumToStr(iProdGSCommandList{recordNo}.ileParOdp,0);
                     ENDIF
-                    ErrWrite \I,"reciveFrame: "+result.ID,"";
+                    ErrWrite\I,"reciveFrame: "+result.ID,"";
                 ENDIF
 
                 !! odebrano prawidlowa ramke
@@ -277,10 +307,10 @@ MODULE Simple_iProdGS
             ENDIF
             WaitTime 1;
         ENDIF
-!        IF frameRecieved=frameToSend2 THEN
+        !        IF frameRecieved=frameToSend2 THEN
 
-!            !!TPWrite "Server potwierdzil odebranie danych za: "\Num:=currentRetryNo;
-!        ENDIF
+        !            !!TPWrite "Server potwierdzil odebranie danych za: "\Num:=currentRetryNo;
+        !        ENDIF
         RETURN result;
     ERROR
         IF ERRNO=ERR_SOCK_TIMEOUT THEN
@@ -301,10 +331,10 @@ MODULE Simple_iProdGS
         ENDIF
 
     ENDFUNC
-    
-    
+
+
     PROC aTest_Simple_iProdGS()
-        
+
         VAR string idPKW;
         VAR num ilePKW;
         VAR string placeID;
@@ -320,51 +350,51 @@ MODULE Simple_iProdGS
         VAR bool czyKontynuowac;
         VAR string czyKontynuowacStr;
         !
-        
-        
-        
+
+
+
         ! test GET_PLAN
-        iProdGS_GET_PLAN idPKW, ilePKW, idWym, ileWym;
-        ErrWrite \I, "iProdGS::test GET_PLAN", " idPKW: "+idPKW+" - "+NumToStr(ilePKW,0)
+        iProdGS_GET_PLAN idPKW,ilePKW,idWym,ileWym;
+        ErrWrite\I,"iProdGS::test GET_PLAN"," idPKW: "+idPKW+" - "+NumToStr(ilePKW,0)
         \RL2:=" idWym:"+idWym+" - "+NumToStr(ileWym,0);
-        
+
         ! test WHAT_ABOUT
         placeID:="ALK";
         idWym:="";
         hold:=TRUE;
         idOper:=-1;
         !PROC iProdGS_WHAT_ABOUT(string ID_miejsca, inout string IndexProduktu, inout bool stan, inout num ID_nastepnaOperacja)
-        iProdGS_WHAT_ABOUT placeID , idWym, hold, idOper;
-        
+        iProdGS_WHAT_ABOUT placeID,idWym,hold,idOper;
+
         holdStr:="FALSE";
         IF hold holdStr:="TRUE";
-        
-        ErrWrite \I, "iProdGS::test WHAT_ABOUT", " placeID: "+placeID
+
+        ErrWrite\I,"iProdGS::test WHAT_ABOUT"," placeID: "+placeID
         \RL2:="  idWym: "+idWym
         \RL3:="   hold: "+holdStr
         \RL4:=" idOper: "+NumToStr(idOper,0);
-        
+
         ! test SKIP_ELEMENT
         partIndex:="DE.ACPR247300";
-        iProdGS_SKIP_ELEMENT partIndex, czyKontynuowac;
+        iProdGS_SKIP_ELEMENT partIndex,czyKontynuowac;
         czyKontynuowacStr:="FALSE";
         IF czyKontynuowac czyKontynuowacStr:="TRUE";
-        ErrWrite \I, "iProdGS::test SKIP_ELEMENT", " partIndex: "+partIndex
+        ErrWrite\I,"iProdGS::test SKIP_ELEMENT"," partIndex: "+partIndex
         \RL2:="   czy kontynuowac: "+czyKontynuowacStr;
-        
+
         ! test DONE
         idOper:=6706;
         placeID:="GR";
         partIndex:="";
         howManyParts:=0;
         iProdGS_DONE idOper,placeID,partIndex,howManyParts;
-        ErrWrite \I, "iProdGS::test DONE", " idOper: "+NumToStr(idOper,0)
+        ErrWrite\I,"iProdGS::test DONE"," idOper: "+NumToStr(idOper,0)
         \RL2:="      placeID:"+placeID
         \RL3:="    partIndex:"+partIndex
         \RL4:=" howManyParts:"+NumToStr(howManyParts,0);
-        
-    ENDPROC  
-    
+
+    ENDPROC
+
     LOCAL PROC iProdGS_clearFrame(INOUT frameTCP toClearFrameTCP)
         toClearFrameTCP.ID:="";
         toClearFrameTCP.p1:="";
@@ -384,7 +414,7 @@ MODULE Simple_iProdGS
         toClearFrameTCP.p15:="";
         toClearFrameTCP.paramNo:=0;
     ENDPROC
-    
+
     LOCAL PROC iProdGS_extractFrame(string recivedFrame,INOUT frameTCP resultFrameTCP)
         VAR bool foundParam;
         ! ramka zostala juz sprawdzona pod katem znakow rozpoczenia i zakonczenia
@@ -442,7 +472,7 @@ MODULE Simple_iProdGS
             ErrWrite "ERROR::ClientStringTCP","Ramka zawiera za duzo parametrow n>10."\RL2:="Skontroluj wielkosc ramki lub zwieksz maksymalna ilosc parametrow.";
         ENDIF
     ENDPROC
-    
+
     LOCAL PROC iProdGS_TPWriteFrame(frameTCP frameTCPToWrite)
         TPWrite "ID:"+frameTCPToWrite.ID;
         IF frameTCPToWrite.p1<>"" TPWrite "p1:"+frameTCPToWrite.p1;
@@ -461,7 +491,7 @@ MODULE Simple_iProdGS
         IF frameTCPToWrite.p14<>"" TPWrite "p14:"+frameTCPToWrite.p14;
         IF frameTCPToWrite.p15<>"" TPWrite "p15:"+frameTCPToWrite.p15;
     ENDPROC
-    
+
     LOCAL FUNC string getSingleParam(INOUT string recivedFrame,INOUT bool foundParam)
         !pobiera pierwszy parametr jako string
         VAR num found;
@@ -487,7 +517,7 @@ MODULE Simple_iProdGS
             ENDIF
         ENDIF
     ENDFUNC
-    
+
     !################################################################################################
     ! 
     PROC iProdGS_GET_PLAN(inout string idPKW,inout num ilePKW,inout string idWym,inout num ileWym)
@@ -495,11 +525,11 @@ MODULE Simple_iProdGS
         VAR string ramkaDoWyslania;
         VAR frameTCP reciveFrame;
         VAR bool result:=FALSE;
-        
+
         !
         ! do 3 razy sztuka
         WHILE result=FALSE AND licznik<3 DO
-            
+
             iProdGS_open;
             ramkaDoWyslania:=iProdGS_sendCommandTCP(iProdGSCommandList{GET_PLAN});
             iProdGS_send ramkaDoWyslania;
@@ -509,21 +539,21 @@ MODULE Simple_iProdGS
                 commandInNum:=commandInNum+1;
                 !
                 result:=TRUE;
-                result:=result AND StrToVal(reciveFrame.p2, ilePKW);
-                result:=result AND StrToVal(reciveFrame.p4, ileWym);
+                result:=result AND StrToVal(reciveFrame.p2,ilePKW);
+                result:=result AND StrToVal(reciveFrame.p4,ileWym);
                 result:=result AND reciveFrame.p1<>"";
                 result:=result AND reciveFrame.p3<>"";
                 IF result THEN
                     !set_PlanResult recivedtFrameTCP.p1, ilePKW, recivedtFrameTCP.p3, ileWym;
                     idPKW:=reciveFrame.p1;
-                    idWym:=reciveFrame.p3;          
+                    idWym:=reciveFrame.p3;
                 ENDIF
             ELSE
-                ErrWrite"iProdGS_GET_PLAN: ERROR: Odebrano nie prawidlowe ID",
+                ErrWrite "iProdGS_GET_PLAN: ERROR: Odebrano nie prawidlowe ID",
                         "  reciveFrame.ID="+reciveFrame.ID
-                \RL2:=  "   p1="+reciveFrame.p1+"   p2="+reciveFrame.p2
-                \RL3:=  "   p3="+reciveFrame.p3+"   p4="+reciveFrame.p4
-                \RL4:=  "   licznik="+NumToStr(licznik,0);
+                \RL2:="   p1="+reciveFrame.p1+"   p2="+reciveFrame.p2
+                \RL3:="   p3="+reciveFrame.p3+"   p4="+reciveFrame.p4
+                \RL4:="   licznik="+NumToStr(licznik,0);
                 result:=FALSE;
             ENDIF
             iProdGS_close;
@@ -532,20 +562,20 @@ MODULE Simple_iProdGS
             IF result=FALSE WaitTime 1;
         ENDWHILE
         !
-    ENDPROC    
-    
+    ENDPROC
+
     !################################################################################################
     ! 
-    PROC iProdGS_WHAT_ABOUT(string ID_miejsca, inout string IndexProduktu, inout bool stan, inout num ID_nastepnaOperacja)
+    PROC iProdGS_WHAT_ABOUT(string ID_miejsca,inout string IndexProduktu,inout bool stan,inout num ID_nastepnaOperacja)
         VAR num licznik:=0;
         VAR string ramkaDoWyslania;
         VAR frameTCP reciveFrame;
         VAR bool result:=FALSE;
-        
+
         !
         ! do 3 razy sztuka
         WHILE result=FALSE AND licznik<3 DO
-            
+
             iProdGS_open;
             ramkaDoWyslania:=iProdGS_sendCommandTCP(iProdGSCommandList{WHAT_ABOUT}\s1:=ID_miejsca);
             iProdGS_send ramkaDoWyslania;
@@ -560,18 +590,18 @@ MODULE Simple_iProdGS
                 ! czy wstrzymac
                 result:=result AND (reciveFrame.p2="0" OR reciveFrame.p2="1");
                 ! ID_OPERACJI 
-                result:=result AND StrToVal(reciveFrame.p3, ID_nastepnaOperacja);
+                result:=result AND StrToVal(reciveFrame.p3,ID_nastepnaOperacja);
                 IF result THEN
                     IndexProduktu:=reciveFrame.p1;
                     stan:=FALSE;
-                    IF reciveFrame.p2="1" stan:=TRUE;       
+                    IF reciveFrame.p2="1" stan:=TRUE;
                 ENDIF
             ELSE
-                ErrWrite"iProdGS_WHAT_ABOUT: ERROR: Odebrano nie prawidlowe ID",
+                ErrWrite "iProdGS_WHAT_ABOUT: ERROR: Odebrano nie prawidlowe ID",
                         "  reciveFrame.ID="+reciveFrame.ID
-                \RL2:=  "   p1="+reciveFrame.p1+"   p2="+reciveFrame.p2
-                \RL3:=  "   p3="+reciveFrame.p3+"   p4="+reciveFrame.p4
-                \RL4:=  "   licznik="+NumToStr(licznik,0);
+                \RL2:="   p1="+reciveFrame.p1+"   p2="+reciveFrame.p2
+                \RL3:="   p3="+reciveFrame.p3+"   p4="+reciveFrame.p4
+                \RL4:="   licznik="+NumToStr(licznik,0);
                 result:=FALSE;
             ENDIF
             iProdGS_close;
@@ -581,19 +611,55 @@ MODULE Simple_iProdGS
         ENDWHILE
         !
     ENDPROC
-    
+
     !################################################################################################
-    ! 
-    PROC iProdGS_SKIP_ELEMENT(string IndexElementu, inout bool kontynuacja)
+    PROC iProdGS_MOVE(string sourceStId,string destStId)
+
+        VAR bool timeut;
         VAR num licznik:=0;
         VAR string ramkaDoWyslania;
         VAR frameTCP reciveFrame;
         VAR bool result:=FALSE;
-        
+
         !
         ! do 3 razy sztuka
         WHILE result=FALSE AND licznik<3 DO
-            
+
+            iProdGS_open;
+            ramkaDoWyslania:=iProdGS_sendCommandTCP(iProdGSCommandList{MOVE}\s1:=sourceStId\s2:=destStId);
+            iProdGS_send ramkaDoWyslania;
+            reciveFrame:=iProdGS_reciveFrame();
+            !PLAN_RESULT
+            IF reciveFrame.ID="MOVE_OK" THEN
+                commandInNum:=commandInNum+1;
+                result:=TRUE;
+            ELSE
+                ErrWrite "iProdGS_MOVE: ERROR: Odebrano nie prawidlowe ID",
+                        "  reciveFrame.ID="+reciveFrame.ID
+                \RL2:="   p1="+reciveFrame.p1+"   p2="+reciveFrame.p2
+                \RL3:="   licznik="+NumToStr(licznik,0);
+                result:=FALSE;
+            ENDIF
+            iProdGS_close;
+            !
+            licznik:=licznik+1;
+            IF result=FALSE WaitTime 1;
+        ENDWHILE
+
+    ENDPROC
+
+    !################################################################################################
+    ! 
+    PROC iProdGS_SKIP_ELEMENT(string IndexElementu,inout bool kontynuacja)
+        VAR num licznik:=0;
+        VAR string ramkaDoWyslania;
+        VAR frameTCP reciveFrame;
+        VAR bool result:=FALSE;
+
+        !
+        ! do 3 razy sztuka
+        WHILE result=FALSE AND licznik<3 DO
+
             iProdGS_open;
             ramkaDoWyslania:=iProdGS_sendCommandTCP(iProdGSCommandList{SKIP_ELEMENT}\s1:=IndexElementu);
             iProdGS_send ramkaDoWyslania;
@@ -607,14 +673,14 @@ MODULE Simple_iProdGS
                 result:=result AND (reciveFrame.p1="0" OR reciveFrame.p1="1");
                 IF result THEN
                     kontynuacja:=FALSE;
-                    IF reciveFrame.p2="1" kontynuacja:=TRUE;       
+                    IF reciveFrame.p2="1" kontynuacja:=TRUE;
                 ENDIF
             ELSE
-                ErrWrite"iProdGS_SKIP_ELEMENT: ERROR: Odebrano nie prawidlowe ID",
+                ErrWrite "iProdGS_SKIP_ELEMENT: ERROR: Odebrano nie prawidlowe ID",
                         "  reciveFrame.ID="+reciveFrame.ID
-                \RL2:=  "   p1="+reciveFrame.p1+"   p2="+reciveFrame.p2
-                \RL3:=  "   p3="+reciveFrame.p3+"   p4="+reciveFrame.p4
-                \RL4:=  "   licznik="+NumToStr(licznik,0);
+                \RL2:="   p1="+reciveFrame.p1+"   p2="+reciveFrame.p2
+                \RL3:="   p3="+reciveFrame.p3+"   p4="+reciveFrame.p4
+                \RL4:="   licznik="+NumToStr(licznik,0);
                 result:=FALSE;
             ENDIF
             iProdGS_close;
@@ -623,21 +689,21 @@ MODULE Simple_iProdGS
             IF result=FALSE WaitTime 1;
         ENDWHILE
         !
-    ENDPROC    
-    
+    ENDPROC
+
 
     !################################################################################################
     ! 
-    PROC iProdGS_DONE(num ID_operacji, string ID_miejsca, string Index , num ile)
+    PROC iProdGS_DONE(num ID_operacji,string ID_miejsca,string Index,num ile)
         VAR num licznik:=0;
         VAR string ramkaDoWyslania;
         VAR frameTCP reciveFrame;
         VAR bool result:=FALSE;
-        
+
         !
         ! do 3 razy sztuka
         WHILE result=FALSE AND licznik<3 DO
-            
+
             iProdGS_open;
             ramkaDoWyslania:=iProdGS_sendCommandTCP(iProdGSCommandList{DONE}\n1:=ID_operacji\s2:=ID_miejsca\s3:=Index\n4:=ile);
             iProdGS_send ramkaDoWyslania;
@@ -647,11 +713,11 @@ MODULE Simple_iProdGS
                 commandInNum:=commandInNum+1;
                 result:=TRUE;
             ELSE
-                ErrWrite"iProdGS_DONE: ERROR: Odebrano nie prawidlowe ID",
+                ErrWrite "iProdGS_DONE: ERROR: Odebrano nie prawidlowe ID",
                         "  reciveFrame.ID="+reciveFrame.ID
-                \RL2:=  "   p1="+reciveFrame.p1+"   p2="+reciveFrame.p2
-                \RL3:=  "   p3="+reciveFrame.p3+"   p4="+reciveFrame.p4
-                \RL4:=  "   licznik="+NumToStr(licznik,0);
+                \RL2:="   p1="+reciveFrame.p1+"   p2="+reciveFrame.p2
+                \RL3:="   p3="+reciveFrame.p3+"   p4="+reciveFrame.p4
+                \RL4:="   licznik="+NumToStr(licznik,0);
                 result:=FALSE;
             ENDIF
             iProdGS_close;
@@ -660,15 +726,15 @@ MODULE Simple_iProdGS
             IF result=FALSE WaitTime 1;
         ENDWHILE
         !
-    ENDPROC      
-    
+    ENDPROC
+
     !! funkcja tworzy ramke typu string z zestawu parametrow typu string lub num (maksymalnie 10 parametrow)
-    LOCAL FUNC string iProdGS_sendCommandTCP(IProdGSCommand command\string s1\num n1\string s2\num n2\string s3\num n3\string s4\num n4\string s5\num n5\string s6\num n6\string s7\num n7\string s8\num n8\string s9\num n9\string s10\num n10)
+    FUNC string iProdGS_sendCommandTCP(IProdGSCommand command\string s1\num n1\string s2\num n2\string s3\num n3\string s4\num n4\string s5\num n5\string s6\num n6\string s7\num n7\string s8\num n8\string s9\num n9\string s10\num n10)
         VAR num paramsCount:=0;
         VAR bool showFrame:=FALSE;
         !! przygotowanie danych do wyslania
         VAR string result;
-        
+
         result:=clientTCP.prefix;
 
         result:=result+command.Komenda;
@@ -702,18 +768,18 @@ MODULE Simple_iProdGS
         ENDIF
         RETURN result;
     ENDFUNC
-    
-    
-        !! dodaje parametr typu string do stringa wstawiajac separator
-    LOCAL PROC addStrToFrame(INOUT string frame,INOUT num paramsCount,string s)
+
+
+    !! dodaje parametr typu string do stringa wstawiajac separator
+    PROC addStrToFrame(INOUT string frame,INOUT num paramsCount,string s)
         IF Present(s) frame:=frame+","+s;
         Incr paramsCount;
     ENDPROC
 
     !! dodaje parametr typu num do stringa wstawiajac separator
-    LOCAL PROC addNumToFrame(INOUT string frame,INOUT num paramsCount,num n)
+    PROC addNumToFrame(INOUT string frame,INOUT num paramsCount,num n)
         IF Present(n) frame:=frame+","+NumToStr(n,0);
         Incr paramsCount;
     ENDPROC
-    
+
 ENDMODULE
