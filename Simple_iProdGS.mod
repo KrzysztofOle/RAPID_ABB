@@ -86,11 +86,11 @@ MODULE Simple_iProdGS
     LOCAL CONST superiorClientTCP clientTCP:=["10.16.48.129",9197,"","q",",",10];
 
 
-    CONST num GET_PLAN:=1;
-    CONST num WHAT_ABOUT:=2;
-    CONST num SKIP_ELEMENT:=3;
-    CONST num DONE:=4;
-    CONST num MOVE:=5;
+    LOCAL CONST num GET_PLAN:=1;
+    LOCAL CONST num WHAT_ABOUT:=2;
+    LOCAL CONST num SKIP_ELEMENT:=3;
+    LOCAL CONST num DONE:=4;
+    LOCAL CONST num MOVE:=5;
 
     !Stale przechowujace ID stanowisk
     CONST string sT_robBig:="RB";
