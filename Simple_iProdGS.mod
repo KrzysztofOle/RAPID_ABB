@@ -1,4 +1,11 @@
 MODULE Simple_iProdGS
+!    
+! Uniwersalny modul do komunikacji z serwerami iProdGS
+!
+! najnowszy kod powinien znajdowac sie w tym miejscu:
+! https://github.com/KrzysztofOle/RAPID_ABB/blob/21c66f2aabd7a47c91d81cea9138b9c671ab3c0d/Simple_iProdGS.mod
+!   
+!
     !
     !rekord przechowujacy ramke podzielona na parametry
     RECORD frameTCP
@@ -45,6 +52,13 @@ MODULE Simple_iProdGS
         !! Znak rozdzielajacy parametry
         num retryNo;
     ENDRECORD
+    
+    RECORD operacjeProdGS
+        num id_operacji;
+        string opis;
+        string lok1;
+        string lok2;
+    ENDRECORD
 
     PERS bool TCPLogSwitch:=TRUE;
 
@@ -78,11 +92,6 @@ MODULE Simple_iProdGS
     CONST num DONE:=4;
     CONST num MOVE:=5;
 
-    PERS string temp_idPKW:="DE.ANPG275825";
-    PERS num temp_ilePKW:=12;
-    PERS string temp_idWym:="DE.ANPG275825";
-    PERS num temp_ileWym:=3;
-
     !Stale przechowujace ID stanowisk
     CONST string sT_robBig:="RB";
     CONST string sT_alejkaKJ:="ALK";
@@ -95,16 +104,33 @@ MODULE Simple_iProdGS
     CONST string sT_buforPKWP:="BPKWP";
     CONST string sT_buforSolniczki:="BSOL";
     CONST string sT_finalConveyor:="KNC";
+    CONST string sT_empty:="";
+    
+    !! Zdefiniowane operacje iProdGS
+    CONST operacjeProdGS OP_sczepianiePKW:=             [6600, "Wykonanie spoin sczepnych PKW",  sT_robWklad,    sT_empty];
+    CONST operacjeProdGS OP_spawaniePKW:=               [6601, "Spawanie PKW",                   sT_robWklad,    sT_empty];
+    CONST operacjeProdGS OP_montazPlaszcza:=            [6700, "Montaz plaszcza",                sT_robPrasa,    sT_empty];
+    CONST operacjeProdGS OP_sczepianiePlaszcza:=        [6701, "Sczepianie plaszcza",            sT_robPlaszcz,  sT_empty];
+    CONST operacjeProdGS OP_spawaniePlaszcza:=          [6702, "Spawanie plaszcza",              sT_robPlaszcz,  sT_empty];
+    CONST operacjeProdGS OP_sczepianieWieszakGorny:=    [6801, "Sczepianie-wieszakGorny",        sT_robGalantL,  sT_robGalantR];
+    
+    
+    PERS string temp_idPKW:="DE.ANPG275825";
+    PERS num temp_ilePKW:=12;
+    PERS string temp_idWym:="DE.ANPG275825";
+    PERS num temp_ileWym:=3;
 
-    PERS string temp_id:="";
-    PERS bool temp_hold:=FALSE;
-    PERS num temp_idOper:=6700;
-    PERS string temp_partIndex:="DE.ACPR247300";
-    PERS string temp_placeId:="";
-    PERS num temp_howManyParts:=0;
-    PERS bool temp_continue:=FALSE;
-    PERS string temp_sourceStId:="";
-    PERS string temp_destStId:="";
+
+
+    LOCAL PERS string temp_id:="";
+    LOCAL PERS bool temp_hold:=FALSE;
+    LOCAL PERS num temp_idOper:=6700;
+    LOCAL PERS string temp_partIndex:="DE.ACPR247300";
+    LOCAL PERS string temp_placeId:="";
+    LOCAL PERS num temp_howManyParts:=0;
+    LOCAL PERS bool temp_continue:=FALSE;
+    LOCAL PERS string temp_sourceStId:="";
+    LOCAL PERS string temp_destStId:="";
 
 
     ! otwiera polaczenie z serwerem iProdGS
@@ -332,7 +358,7 @@ MODULE Simple_iProdGS
 
     ENDFUNC
 
-
+    !! aTest_Simple_iProdGS - procedura do testowania komunikacji z iProdGS
     PROC aTest_Simple_iProdGS()
 
         VAR string idPKW;
@@ -392,6 +418,17 @@ MODULE Simple_iProdGS
         \RL2:="      placeID:"+placeID
         \RL3:="    partIndex:"+partIndex
         \RL4:=" howManyParts:"+NumToStr(howManyParts,0);
+        
+        ! test MOVE
+        sourceStId:=sT_robWklad;
+        destStId:=sT_buforPKWP;
+        
+        iProdGS_MOVE sourceStId, destStId;
+        ErrWrite \I, "iProdGS::test DONE", " sourceStId: "+sourceStId
+        \RL2:="      destStId:"+destStId;
+        
+        !
+        ErrWrite \I, "iProdGS::Koniec testu.", "Koniec testu komunikacji z serveram iProdGS";
 
     ENDPROC
 
