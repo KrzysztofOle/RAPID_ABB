@@ -112,6 +112,7 @@ MODULE Simple_iProdGS
     CONST operacjaProdGS OP_montazPlaszcza:=            [6700, "Montaz plaszcza",                sT_robPrasa,    sT_empty];
     CONST operacjaProdGS OP_sczepianiePlaszcza:=        [6701, "Sczepianie plaszcza",            sT_robPlaszcz,  sT_empty];
     CONST operacjaProdGS OP_spawaniePlaszcza:=          [6702, "Spawanie plaszcza",              sT_robPlaszcz,  sT_empty];
+    !! 
     CONST operacjaProdGS OP_sczepianieWieszakGorny:=    [6801, "Sczepianie-wieszakGorny",        sT_robGalantL,  sT_robGalantR];
     
     
