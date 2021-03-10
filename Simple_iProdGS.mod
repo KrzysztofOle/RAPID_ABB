@@ -5,7 +5,8 @@ MODULE Simple_iProdGS
 ! najnowszy kod powinien znajdowac sie w tym miejscu:
 ! https://github.com/KrzysztofOle/RAPID_ABB/blob/21c66f2aabd7a47c91d81cea9138b9c671ab3c0d/Simple_iProdGS.mod
 !   
-!           komentarz
+!           komentarz  Krzysztof
+!           dodatkowo Krzysztof
 
     !
     !rekord przechowujacy ramke podzielona na parametry
