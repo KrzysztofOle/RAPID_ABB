@@ -53,7 +53,7 @@ MODULE Simple_iProdGS
         num retryNo;
     ENDRECORD
     
-    RECORD operacjeProdGS
+    RECORD operacjaProdGS
         num id_operacji;
         string opis;
         string lok1;
@@ -107,12 +107,12 @@ MODULE Simple_iProdGS
     CONST string sT_empty:="";
     
     !! Zdefiniowane operacje iProdGS
-    CONST operacjeProdGS OP_sczepianiePKW:=             [6600, "Wykonanie spoin sczepnych PKW",  sT_robWklad,    sT_empty];
-    CONST operacjeProdGS OP_spawaniePKW:=               [6601, "Spawanie PKW",                   sT_robWklad,    sT_empty];
-    CONST operacjeProdGS OP_montazPlaszcza:=            [6700, "Montaz plaszcza",                sT_robPrasa,    sT_empty];
-    CONST operacjeProdGS OP_sczepianiePlaszcza:=        [6701, "Sczepianie plaszcza",            sT_robPlaszcz,  sT_empty];
-    CONST operacjeProdGS OP_spawaniePlaszcza:=          [6702, "Spawanie plaszcza",              sT_robPlaszcz,  sT_empty];
-    CONST operacjeProdGS OP_sczepianieWieszakGorny:=    [6801, "Sczepianie-wieszakGorny",        sT_robGalantL,  sT_robGalantR];
+    CONST operacjaProdGS OP_sczepianiePKW:=             [6600, "Wykonanie spoin sczepnych PKW",  sT_robWklad,    sT_empty];
+    CONST operacjaProdGS OP_spawaniePKW:=               [6601, "Spawanie PKW",                   sT_robWklad,    sT_empty];
+    CONST operacjaProdGS OP_montazPlaszcza:=            [6700, "Montaz plaszcza",                sT_robPrasa,    sT_empty];
+    CONST operacjaProdGS OP_sczepianiePlaszcza:=        [6701, "Sczepianie plaszcza",            sT_robPlaszcz,  sT_empty];
+    CONST operacjaProdGS OP_spawaniePlaszcza:=          [6702, "Spawanie plaszcza",              sT_robPlaszcz,  sT_empty];
+    CONST operacjaProdGS OP_sczepianieWieszakGorny:=    [6801, "Sczepianie-wieszakGorny",        sT_robGalantL,  sT_robGalantR];
     
     
     PERS string temp_idPKW:="DE.ANPG275825";
@@ -729,6 +729,8 @@ MODULE Simple_iProdGS
     ENDPROC
 
 
+
+    
     !################################################################################################
     ! 
     PROC iProdGS_DONE(num ID_operacji,string ID_miejsca,string Index,num ile)
@@ -763,6 +765,16 @@ MODULE Simple_iProdGS
             IF result=FALSE WaitTime 1;
         ENDWHILE
         !
+    ENDPROC
+    
+    PROC iProdGS_DONE_(operacjaProdGS operacjaProd,string ID_miejsca,string Index,num ile)
+        ! sprawdzamy czy operacja dozwolona jest dla tego miejsca
+        IF operacjaProd.lok1=ID_miejsca OR operacjaProd.lok2=ID_miejsca THEN
+            iProdGS_DONE operacjaProd.id_operacji, ID_miejsca, Index, ile;    
+        ELSE
+            ErrWrite "iProdGS:: Operacja: "+operacjaProd.opis+" nie jest dozolona dla: "+ ID_miejsca,"";
+            Stop;
+        ENDIF
     ENDPROC
 
     !! funkcja tworzy ramke typu string z zestawu parametrow typu string lub num (maksymalnie 10 parametrow)
