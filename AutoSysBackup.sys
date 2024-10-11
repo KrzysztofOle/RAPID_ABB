@@ -1,0 +1,59 @@
+MODULE AutoSysBackup(SYSMODULE)
+    PERS string LastBackupDate:="2017-10-03";
+    PERS num LastBackupHour:=0;
+    PERS num LastBackupDay:=0;
+    PERS num LastBackupDH:=0;
+    LOCAL VAR string currentDate;
+    
+    PROC autoBackup()
+        currentDate := CDate();
+        IF LastBackupDate<>currentDate THEN
+            ! robimy backup bo dzisiaj nie bylo
+            CreateBackup;
+        ENDIF
+    ENDPROC
+    
+    PROC autoBackupH(num interval)
+        VAR num currentHour;
+        VAR num currentDay;
+        currentDate := CDate();
+        currentHour:=GetTime(\Hour);
+        currentDay:=GetTime(\WDay);
+        IF LastBackupDate<>currentDate THEN
+            ! robimy backup bo dawno nie bylo
+            CreateBackup;    
+        ELSE
+            IF (LastBackupHour+interval)>currentHour THEN
+                ! robimy backup bo dawno nie bylo
+             CreateBackup;    
+            ENDIF
+        ENDIF
+        
+    ENDPROC
+    
+    PROC createBackup()
+        ! robimy backup
+        ErrWrite \I, "AutoBackup START", "Rozpoczynam automatyczny backup systemu";
+        Set StartBackup;
+        WaitDO BackupInProgress, 1;
+        Reset StartBackup;
+        WaitUntil DOutput(BackupInProgress)=0 OR DOutput(BackupError)=1;
+        IF DOutput(BackupError)=1 THEN
+            ! blad podczas robienia backupu
+            ErrWrite \W, "AutoBackup ERROR","Automatyczny backup systemu zakonczyl sie bledem"\RL2:="backup date: "+currentDate;
+        ELSEIF DOutput(BackupInProgress)=0 AND DOutput(BackupError)=0 THEN
+            ! udal sie backup
+            LastBackupDate:=currentDate;
+            ErrWrite \I, "AutoBackup SUCCESS","Automatyczny backup systemu zakonczyl sie sukcesem"\RL2:="backup date: "+currentDate;
+        ENDIF
+    ENDPROC
+    
+    PROC testAutoSysBackup()
+        TPWrite "TestAutoSysBackup()";
+        currentDate := CDate();
+        CreateBackup;
+        TPWrite "end TestAutoSysBackup()";
+        Stop;
+    ENDPROC
+    
+ENDMODULE
