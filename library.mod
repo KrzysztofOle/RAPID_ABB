@@ -248,14 +248,54 @@ MODULE library
         
     ENDFUNC  
     
-    FUNC bool compareTransAndRot(robtarget rtA, robtarget rtB)
+    FUNC bool compareTransAndRot(robtarget rtA, robtarget rtB \num maxDistance\num maxDeltaAngle)
         VAR bool result:=TRUE;
+        VAR num delta;
+        VAR num deltaA;
+        VAR pose deltaPose;
         
-        result:= (result AND (rtA.trans = rtB.trans));
-        result:= (result AND (rtA.rot = rtB.rot));
+        IF (NOT Present(maxDistance)) AND (NOT Present(maxDeltaAngle)) THEN
+            result:= (result AND (rtA.trans = rtB.trans));
+            result:= (result AND (rtA.rot = rtB.rot));
+        ENDIF
+        IF Present(maxDistance) THEN
+            delta := Distance(rtA.trans, rtB.trans);
+            result:= (result AND (delta <= maxDistance));
+        ENDIF
+        IF Present(maxDeltaAngle) THEN
+            deltaPose:=PoseMult([[0,0,0],rtA.rot],PoseInv([[0,0,0],rtB.rot]));
+            deltaA:=Abs(EulerZYX(\X,deltaPose.rot));
+            result:= (result AND (deltaA <= maxDeltaAngle));
+            deltaA:=Abs(EulerZYX(\Y,deltaPose.rot));
+            result:= (result AND (deltaA <= maxDeltaAngle));
+            deltaA:=Abs(EulerZYX(\Z,deltaPose.rot));
+            result:= (result AND (deltaA <= maxDeltaAngle));
+        ENDIF
         
         RETURN result;
-        
     ENDFUNC
+    
+    	!procedura sprawdzajaca nazwe pliku - wydziela z niego oddzielnie nazwe i rozszerzenie
+	! arg: fullName - pelna nazwa pliku (moze byc z rozszerzeniem lub bez)
+	! arg: fileName - wynik operacji = sama nazwa pliku
+	! arg: fileType - wynik operacji = samo rozszerzenie (jezeli podano to takie jak w fullName, jezeli nit to jak parametr defaultFileType)
+	! arg: defaultFileType - domyslne rozszerzenie pliku jakie w przypadku gdy nie zdefiniowano rozszerzenia w pelnej nazwie pliku
+	PROC checkFileExt(string fullName,INOUT string fileName,INOUT string fileType,string defaultFileType)
+		VAR num extensionStart;
+		
+		!majac pelna nazwe pliku sprawdzamy czy jest w niej kropka
+		extensionStart:=StrFind(fullName,1,".");
+		IF extensionStart>StrLen(fullName) THEN
+			!jezeli nie znaleziono rozszerzenia to przepisujemy defaultowe
+			fileType:=defaultFileType;
+			!rozszerzenia nie ma wiec podana nazwa to nazwa pliku
+			fileName:=fullName;
+		ELSE
+			!znaleziono rozszerzenie
+			fileType:=StrPart(fullName,extensionStart,StrLen(fullName)-extensionStart+1);
+			!przepisujemy nazwe pliku
+			fileName:=StrPart(fullName,1,extensionStart-1);
+		ENDIF
+	ENDPROC
 
 ENDMODULE

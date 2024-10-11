@@ -1,0 +1,104 @@
+MODULE Kalibrator2UData(SYSMODULE)
+    PERS wobjdata Kal2LOnaSK:=[FALSE,TRUE,"",[[-537.404,771.021,404.578],[0.395447,0.000772825,-0.918488,0.000734508]],[[0,0,0],[1,0,0,0]]];
+    !PERS wobjdata Kal2LOnaSKnew:=[FALSE,TRUE,"",[[-553.711,778.743,402.624],[0.39768,0.00266901,-0.917493,0.00704625]],[[0,0,0],[1,0,0,0]]];
+    PERS robtarget Kal_P1:=[[0, 0, 1],[0.953991,-0.208038,0.214359,0.0258836],[1,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget Kal_P2:=[[0, 0, 1],[0.947608,0.0739966,0.215833,-0.223558],[1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget Kal_P3:=[[0, 0, 1],[0.666413,0.207213,0.000364755,-0.716209],[1,0,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget Kal_P4:=[[0, 0, 1],[0.583974,0.0805374,-0.385822,-0.709668],[1,-1,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget Kal_PZ1:=[[0,0,15],[1,0,0,0],[1,-1,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget Kal_PZ2:=[[0,0,2],[1,0,0,0],[1,-1,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    !
+    CONST robtarget Kal_2U:=[[0,0,1],[1,0,0,0],[1,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    !
+    PERS tooldata SzpikulecNew:=[TRUE,[[268.042,-2.24963,486.348],[0.920072,0.00475119,0.391714,-0.00202277]],[12.8,[14.8,-18.4,211],[1,0,0,0],0.418,0.722,0.22]];
+    PERS tooldata SzpikulecBackup:=[TRUE,[[268.109,-2.21639,486.456],[0.919786,0.00803059,0.392323,-0.00342535]],[12.8,[14.8,-18.4,211],[1,0,0,0],0.418,0.722,0.22]];
+    !
+    PERS num szerokoscMinimalna:=0.1;
+    PERS num minDeltaZ:=0.05;
+    !KOL:nie uzywany TASK PERS wobjdata wobjKal2Ubackup:=[FALSE,TRUE,"",[[-553.968,777.309,403.019],[0.398884,0.000562791,-0.916976,0.00683292]],[[0,0,0],[1,0,0,0]]];
+    !
+    TASK PERS num kal2UDeltaXY:=4; !orginalnie 4
+    TASK PERS num kal2UDeltaZ:=3;
+    TASK PERS num kal2UDeltaXYcenter:=6;
+    TASK PERS num kal2UDeltaPoint:=12;
+    !
+    TASK PERS num kal2UduzaSzerokosc:=1; ! granica uznawania szpikulca za szeroki
+    TASK PERS num kal2UmaxDeltaX:=10;    ! maksymalne bezpieczne przesuniecie koncowi po kierunku osi X
+    TASK PERS num kal2UmaxDeltaY:=10;    ! maksymalne bezpieczne przesuniecie koncowi po kierunku osi Y
+    TASK PERS num kal2UstartSzer:=7;     ! startowa szerokosc szpikulca przed pierwszym szukaniem
+    TASK PERS num kal2UstartSzerPZ1:=9;  ! startowa szerokosc szpikulca na wysokosci PZ1
+    TASK PERS num kal2UminDelta:=2;      ! minimalny odcinek szukania
+    TASK PERS num kal2UmaxZend:=10;      ! maksymalna dlugosc szukania po osi Z
+    TASK PERS num kal2UminZend:=0.3;     ! kryterium konca szpikulca (jestesmy blisko konca)
+    TASK PERS num kal2UmaxLiczProb:=8;   ! maksymalna liczba prob znalezienia konca
+    TASK PERS num kal2UkrytKonca:=0.2;   ! kryterium kasymalnej odleglosci ostatnich punktow
+    TASK PERS num kal2UbackZ:=0.5;       ! gdy jestesmy blisko konca to ile cofamy, blisko to gdy dystans po jakim znaleziono Z < kal2UminZend
+    
+    VAR signaldi aliasSygnalPoOsiX;
+    VAR signaldi aliasSygnalPoOsiY;
+    VAR signaldi aliasSygnalSumaXY;
+    
+    TASK PERS bool logsignalKal2U:=FALSE;
+    ! zwiekszony poziom wykrywania kolizji dla kalibracji szpikulca
+    CONST num motionSupKal:=200;
+    
+    PROC testKalibracjiSzpikulca2U()
+        
+        AliasIO RS_glassTemp,wejSzumu;
+        ! sprawdzamy czy to tryb manual
+        WHILE ((NOT OpMode()=OP_MAN_PROG) AND RobOS()) DO
+            TPErase;
+            TPWrite "Zzly tryb robota! Wymagany MANUAL";
+            TPWrite "Zmien tryb pracy na MANUAL i wcisnij START!";
+            STOP;    
+        ENDWHILE
+        SzpikulecNew:=Szpikulec;
+        MoveJ servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+        FOR lc FROM 1 TO 25 DO
+            testFullKal2U SzpikulecNew, RS_widelkiPOZIOM, RS_widelkiSKOSNE;    
+        ENDFOR
+        checkKal2U SzpikulecNew, RS_widelkiPOZIOM, RS_widelkiSKOSNE\newWobjKal2U:=Kal2LOnaSK\aktualizuj;
+        
+        MoveL servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+        Stop;
+        
+    ENDPROC
+    
+    ! procedura uruchamia kalibracje szpikulca
+    PROC kalibrujTCPSzpikulec()
+        ! sprawdzamy czy to tryb manual
+!        WHILE ((NOT OpMode()=OP_MAN_PROG) AND RobOS()) DO
+!            TPErase;
+!            TPWrite "Zzly tryb robota! Wymagany MANUAL";
+!            TPWrite "Zmien tryb pracy na MANUAL i wcisnij START!";
+!            STOP;    
+!        ENDWHILE
+        MoveJ servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+        kalibrujSzpikulec Szpikulec, RS_widelkiPOZIOM, RS_widelkiSKOSNE \toolBackup:=SzpikulecBackup\aktualizuj;  
+        MoveJ servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+    ENDPROC    
+    
+    PROC wyznaczWobjKal2LOnaSK()
+        AliasIO RS_glassTemp,wejSzumu;
+        ! sprawdzamy czy to tryb manual
+!        WHILE ((NOT OpMode()=OP_MAN_PROG) AND RobOS()) DO
+!            TPErase;
+!            TPWrite "Zzly tryb robota! Wymagany MANUAL";
+!            TPWrite "Zmien tryb pracy na MANUAL i wcisnij START!";
+!            STOP;    
+!        ENDWHILE
+        !SzpikulecNew:=Szpikulec;
+        MoveJ servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+        checkKal2U Szpikulec, RS_widelkiPOZIOM, RS_widelkiSKOSNE\newWobjKal2U:=Kal2LOnaSK\aktualizuj;
+        MoveL servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+    ENDPROC
+    
+    ! testowanie kalibracji szpilikulca z korekta wobj 
+    PROC testKal2LOnaSK()
+        FOR i FROM 1 TO 10 DO
+            kalibrujTCPSzpikulec;
+            wyznaczWobjKal2LOnaSK;
+        ENDFOR
+        EXIT;
+    ENDPROC
+ENDMODULE

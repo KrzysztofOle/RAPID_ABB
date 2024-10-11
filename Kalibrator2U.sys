@@ -1,0 +1,1221 @@
+MODULE Kalibrator2U(SYSMODULE)
+
+    !
+    LOCAL PERS robtarget Kal_2UXmax:=[[12,0,1],[1,0,0,0],[1,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget Kal_2UXmin:=[[-12,0,1],[1,0,0,0],[1,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget Kal_2UYmax:=[[0,12,1],[1,0,0,0],[1,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget Kal_2UYmin:=[[0,-12,1],[1,0,0,0],[1,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    !
+    LOCAL CONST speeddata vSearchKalTCP:=[0.5,10,100,45];
+    LOCAL CONST speeddata vSearchFastKalTCP:=[2,10,100,45];
+    LOCAL CONST speeddata vSlowMoveKalTCP:=[10,10,100,45];
+    LOCAL CONST speeddata vMoveKalTCP:=[50,30,100,45];
+    LOCAL CONST speeddata vFastMoveKalTCP:=[100,30,100,45];
+    !
+    
+    ! UWAGA: Przed kalibracja nalezy wstepnie zdefiniowac:
+    !           PERS wobjdata Kal2LOnaSK.uframe: patrzac od robota os X do przudu a os Y w prawo
+    !           Kalibrowane narzedzie metoda 4 punkty + kierunek Z
+    !           Pozycje narzedzia przy kalibracji punktu TCP (wzgledem ukladu Kal2LOnaSK)
+    !               Kal_P1, Kal_P2, Kal_P3, Kal_P4,
+    !           Pozycja srodkowa narzedzia zorientowanego pionowo wzgledem kalibaratora
+    !               Kal_2U
+    !           Opcjonalnie jezeli bedzie problem pozcyje przy kalibracji orientacji narzedia
+    !               Kal_PZ1, Kal_PZ2
+    !
+    !   sygnaly:
+    !            sygnalPoOsiX - sygnal z czujnika ktorego wiazka jest ruwnolegla do osi X ukladu Kal2LOnaSK
+    !            sygnalPoOsiY - sygnal z czujnika ktorego wiazka jest ruwnolegla do osi Y ukladu Kal2LOnaSK
+    !  
+    
+ 
+    ! Pelne testy pozycji, kalibracji i badanie kalibratora Kal2U
+    PROC testFullKal2U(inout tooldata doKalibracji, VAR signaldi sygnalPoOsiY, VAR signaldi sygnalPoOsiX \switch checkWobj)
+        VAR robtarget tempC;
+        VAR num doKalibratora;
+        VAR bool zapisDanych;
+        VAR num randomX;
+        VAR num randomY;
+        VAR num randomZ;
+        
+        
+        randomX:=Random(-1,1);
+        ! czy jestesmy blisko kalibratora
+        ! jezeli mamy wstepnie wyznaczony kalibrator i tool to powinnismy byc blisko
+        tempC:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+        doKalibratora:=Distance(tempC.trans,[0,0,0]);
+        
+        ! odsuwamy sie po z gdy dystans do dobj <50mm
+        IF doKalibratora<50 THEN
+            Movel RelTool(tempC,0,0,-100),vFastMoveKalTCP,z5,doKalibracji\WObj:=Kal2LOnaSK;   
+        ELSEIF doKalibratora>150 THEN
+            ! jestesmy daleko od kalibratora moze cos jest nie tak ?
+            
+        ENDIF
+        randomY:=Random(-1,1);
+        WaitTime 0.1;
+        randomZ:=Random(-1,1);
+        
+        ! testowy zapis do pliku
+        !zapisDanych:=backupData("doKalibracji"\Tool:=doKalibracji);
+        
+        ! dodajemy losowe bledy
+        IF Abs(randomX)>1 Stop;
+        IF Abs(randomY)>1 Stop;
+        IF Abs(randomZ)>1 Stop;
+        doKalibracji.tframe.trans.x:=doKalibracji.tframe.trans.x+randomX;
+        doKalibracji.tframe.trans.y:=doKalibracji.tframe.trans.y+randomY;
+        doKalibracji.tframe.trans.z:=doKalibracji.tframe.trans.z+randomZ;
+        
+        ! testujemy pozycje kalibracyjne (tylko dojazdy do pozycji)
+        ! testKalPositions doKalibracji;
+        ! kalibracja narzedzia, wynik zapisany w SzpikulecNew
+        kalibrujSzpikulec doKalibracji, sygnalPoOsiY, sygnalPoOsiX \toolBackup:=SzpikulecBackup \aktualizuj;
+        ! KOL: sprawdzenie
+        IF doKalibracji<>SzpikulecNew THEN
+            !ErrWrite "doKalibracji<>SzpikulecNew","doKalibracji<>SzpikulecNew";
+            ErrWriteID 25;
+            Stop;
+        ENDIF
+        ! aktualizacja danych kalibrowanego narzedzia
+        !doKalibracji:=SzpikulecNew;
+        IF Present(checkWobj) THEN
+            ! sprawdzamy kalibrator i korygujemy uklad oniesienia
+            checkKal2U doKalibracji, sygnalPoOsiY, sygnalPoOsiX\newWobjKal2U:=Kal2LOnaSK\aktualizuj;
+            !Kal2LOnaSK:=Kal2LOnaSKnew;
+        ENDIF
+    ENDPROC
+    
+    
+    ! Testowanie podjazdu do wszystkich pozycji kluczowych kalibracji
+    PROC testKalPositions(inout tooldata doKalibracji)
+        VAR robtarget xxx;
+        
+        ConfL \Off;
+        !ConfJ \Off;
+        !MoveAbsJ jtHome,vFastMoveKalTCP,z0,Szpikulec\WObj:=Kal2LOnaSK;
+        MoveJ RelTool(Kal_2U,0,0,-100),vFastMoveKalTCP,z100,doKalibracji\WObj:=Kal2LOnaSK;
+        TPWrite "Kal_2U - pozycja centtralna";
+        MoveL Kal_2U,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        TPWrite "Kal_P1 - kalibracja TCP, punkt 1";
+        MoveL Kal_P1,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        !Kal_P1:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+        TPWrite "Kal_P2 - kalibracja TCP, punkt 2";
+        MoveL Kal_P2,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        !Kal_P2:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+        TPWrite "Kal_P3 - kalibracja TCP, punkt 3";
+        MoveL Kal_P3,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        !Kal_P3:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+        TPWrite "Kal_P4 - kalibracja TCP, punkt 4";
+        MoveL Kal_P4,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        !Kal_P4:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+        TPWrite "Kal_P3-1 - odkrecamy sie";
+        MoveL Kal_P3,vMoveKalTCP,z0,doKalibracji\WObj:=Kal2LOnaSK;
+        MoveL Kal_P2,vMoveKalTCP,z0,doKalibracji\WObj:=Kal2LOnaSK;
+        MoveL Kal_P1,vMoveKalTCP,z0,doKalibracji\WObj:=Kal2LOnaSK;
+        TPWrite "Kal_PZ1 - kalibracja orientacki, punkt Z1";
+        MoveL Kal_PZ1,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        TPWrite "Kal_PZ2 - kalibracja orientacki, punkt Z2";
+        MoveL Kal_PZ2,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        TPWrite "Kal_2U - pozycja centtralna";
+        MoveL Kal_2U,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        !xxx:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+        !Kal_2U.robconf:=xxx.robconf;
+        
+        MoveL RelTool(Kal_2U,0,0,-100),vFastMoveKalTCP,z100,doKalibracji\WObj:=Kal2LOnaSK;
+        !MoveAbsJ jtHome,vFastMoveKalTCP,z0,Szpikulec\WObj:=Kal2LOnaSK;
+        ConfL \On;
+        ConfJ \On;
+    ENDPROC
+    
+    
+    ! testuje polozenie wzgledne czujnikow widelkowych 2U
+    ! okresla ktory czujnik jest wyzej i o ile
+    ! opcionalnie wyznacza polozenie ukladu odniesienia na kalibratorze 2U
+    !   inout tooldata doKalibracji - narzedzie ktorym testujemy Kal2U
+    !   VAR signaldi sygnalPoOsiY  - sygnal z czujnika którego wiazka lezy na osi Y (równolegla do osi Y)
+    !   VAR signaldi sygnalPoOsiX  - sygnal z czujnika którego wiazka lezy na osi X (równolegla do osi X)
+    !   \inout wobjdata newWobjKal2U - opcionalny parametr wobj jaki uklad odniesienia mamy skorygowac
+    !   \switch aktualizuj         - aktualizuje uklad odniesienia
+    !   |switch zapytaj            - opcionalnie pyta czy zaktualizowac uklad odniesienia
+    PROC checkKal2U(inout tooldata doKalibracji,VAR signaldi sygnalPoOsiY,VAR signaldi sygnalPoOsiX\inout wobjdata newWobjKal2U\string wobjNazwa\inout wobjdata backupWobjKal2U\switch aktualizuj |switch zapytaj )
+        VAR num tempDeltaZ;
+        VAR robtarget Xmax;
+        VAR robtarget Xmin;
+        VAR robtarget Ymax;
+        VAR robtarget Ymin;
+        VAR pos PX;
+        VAR pos PY;
+        VAR pos DeltaP;
+        VAR pose frame;
+        VAR pos frameEulerRot;
+        VAR btnres odpBtn;
+        VAR bool zapisDanych;
+        
+        ! zwiekszamy czulosc na kolizje
+        MotionSup \On \TuneValue:=motionSupKal;
+        ErrWrite \I,"SPRAWDZAMY Kal2U","PROC:checkKal2U:start";
+        !kopiujemy orientacje i konfiguracje z Kal_2U
+!        Kal_2UXmax.rot:=Kal_2U.rot;
+!        Kal_2UXmax.robconf:=Kal_2U.robconf;
+!        Kal_2UXmin.rot:=Kal_2U.rot;
+!        Kal_2UXmin.robconf:=Kal_2U.robconf;
+!        Kal_2UYmax.rot:=Kal_2U.rot;
+!        Kal_2UYmax.robconf:=Kal_2U.robconf;
+!        Kal_2UYmin.rot:=Kal_2U.rot;
+!        Kal_2UYmin.robconf:=Kal_2U.robconf;
+        Kal_2UXmax:=Offs(Kal_2U,kal2UDeltaPoint,0,0);
+        Kal_2UXmin:=Offs(Kal_2U,-kal2UDeltaPoint,0,0);
+        Kal_2UYmax:=Offs(Kal_2U,0,kal2UDeltaPoint,0);
+        Kal_2UYmin:=Offs(Kal_2U,0,-kal2UDeltaPoint,0);
+        
+        !
+        MoveJ RelTool(Kal_2U,0,0,-100),vMoveKalTCP,z100,doKalibracji\WObj:=Kal2LOnaSK;
+        MoveL Kal_2U,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        MoveL Kal_2UXmax,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        Xmax:=centerTool2L(doKalibracji, sygnalPoOsiY, sygnalPoOsiX, tempDeltaZ\onlyY);
+        MoveL Kal_2UXmin,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        Xmin:=centerTool2L(doKalibracji, sygnalPoOsiY, sygnalPoOsiX,tempDeltaZ\onlyY);
+        MoveL Kal_2UYmax,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        Ymax:=centerTool2L(doKalibracji, sygnalPoOsiY, sygnalPoOsiX,tempDeltaZ\onlyX);
+        MoveL Kal_2UYmin,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        Ymin:=centerTool2L(doKalibracji, sygnalPoOsiY, sygnalPoOsiX,tempDeltaZ\onlyX);
+        MoveL Kal_2U,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        MoveL RelTool(Kal_2U,0,0,-100),vMoveKalTCP,z100,doKalibracji\WObj:=Kal2LOnaSK;
+        !
+        ! obliczamy punkty srodkowe prostych
+        PX:=(Xmax.trans+Xmin.trans)*0.5;
+        PY:=(Ymax.trans+Ymin.trans)*0.5;
+        DeltaP:=PX-PY;
+        ! logujemy wyniki
+        TPWrite "Czujnik wzdluz osi X, punkt = "\Pos:=PX;
+        TPWrite "Czujnik wzdluz osi Y, punkt = "\Pos:=PY;
+        TPWrite "DeltaP = "\Pos:=DeltaP;
+        ErrWrite \I,"Wyniki procedury checkKal2U","PROC:checkKal2U:"
+            \RL2:="Czujnik wzdluz osi X, punkt.z = "+NumToStr(PX.z,2)
+            \RL3:="Czujnik wzdluz osi Y, punkt.z = "+NumToStr(PY.z,2)
+            \RL4:="                     DeltaP.z = "+NumToStr(DeltaP.z,2);
+        
+        ! jezeli to konieczne wyznacz wobj kalibratora 2U
+        IF Present(newWobjKal2U) THEN
+            ErrWrite \I,"WYZNACZAMY KOREKTE UKLADU Kal2U","PROC:checkKal2U:korekta wobj";
+            ! jak trzeba to backup
+            IF Present(backupWobjKal2U) THEN
+                backupWobjKal2U:=newWobjKal2U;    
+            ENDIF
+            ! ujklad kalibratora wyznaczamy na wysokosci czujnika ktory jest nozej
+            ! uwaga: uklad kalibratora ma Z skierowane w dol
+            IF PX.z<PY.z THEN
+                !DeltaP.z<0
+                !czujnik wzdluz osi X wyzej
+                frame:=DefFrame(Offs(Xmin,0,0,DeltaP.z),Offs(Xmax,0,0,DeltaP.z),Ymax\Origin:=3);
+            ELSE
+                !DeltaP.z>0
+                !czujnik wzdluz osi Y wyzej
+                frame:=DefFrame(Xmin,Xmax,Offs(Ymax,0,0,DeltaP.z)\Origin:=3);
+            ENDIF
+            TPWrite "FRAME          = "\Pos:=frame.trans;
+            frameEulerRot.x:=EulerZYX(\X,frame.rot);
+            frameEulerRot.y:=EulerZYX(\Y,frame.rot);
+            frameEulerRot.z:=EulerZYX(\Z,frame.rot);
+            TPWrite "FRAME.rotAngle = "\Pos:=frameEulerRot;
+            ErrWrite \I,"Wyznaczono poprawke ukladu kalibratora","PROC:checkKal2U:poprawka:"
+            \RL2:="Poprawka x = "+NumToStr(frame.trans.x,2)
+            \RL3:="Poprawka y = "+NumToStr(frame.trans.y,2)
+            \RL4:="Poprawka z = "+NumToStr(frame.trans.z,2);
+            ErrWrite \I,"Wyznaczono poprawke katowa ukladu kalibratora","PROC:checkKal2U:poprawka katowa:"
+            \RL2:="Poprawka x(angle) = "+NumToStr(frameEulerRot.x,1)
+            \RL3:="Poprawka y(angle) = "+NumToStr(frameEulerRot.y,1)
+            \RL4:="Poprawka z(angle) = "+NumToStr(frameEulerRot.z,1);
+            
+            ! wyznaczamy wobj
+            !newWobjKal2U:=
+            
+            IF Present(aktualizuj) AND (NOT Present(zapytaj)) THEN
+                newWobjKal2U.uframe:=PoseMult(Kal2LOnaSK.uframe,frame);  
+                ErrWrite \I,"Wybrano opcje aktualizacji ukladu kalibratora","PROC:checkKal2U:/aktualizuj";
+                ! zapis wobj do pliku
+                zapisDanych:=backupData("Kalibrator2U"\Wobj:=newWobjKal2U);
+            ENDIF     
+            IF Present(zapytaj) THEN
+                UIMsgBox \Header:="Koniec sprawdzania kalibratora Kal2U","Czy zaktualizowac uklad kalibratora?"
+                    \MsgLine2:="  Poprawka x = "+NumToStr(frame.trans.x,2)
+                    \MsgLine3:="  Poprawka y = "+NumToStr(frame.trans.y,2)
+                    \MsgLine4:="  Poprawka z = "+NumToStr(frame.trans.z,2)
+                    \Buttons:=btnYesNo \Icon:=iconInfo \Result:=odpBtn;  
+                IF odpBtn=resYes THEN
+                    newWobjKal2U.uframe:=PoseMult(Kal2LOnaSK.uframe,frame);   
+                    ErrWrite \I,"Operator wybral opcje aktualizacji ukladu kalibratora","PROC:checkKal2U:/zapytaj"; 
+                    ! zapis wobj do pliku
+                    zapisDanych:=backupData("Kalibrator2U"\Wobj:=newWobjKal2U);
+                ENDIF
+            ELSE    
+                UIMsgBox \Header:="Koniec sprawdzania kalibratora Kal2U","Wyniki sprawdzania kalibratora Kal2U:"
+                    \MsgLine2:="  Poprawka x = "+NumToStr(frame.trans.x,2)
+                    \MsgLine3:="  Poprawka y = "+NumToStr(frame.trans.y,2)
+                    \MsgLine4:="  Poprawka z = "+NumToStr(frame.trans.z,2)
+                    \MaxTime:=5;
+            ENDIF
+            
+        ENDIF
+        ! na koniec
+        MoveL RelTool(Kal_2U,0,0,-100),vMoveKalTCP,z100,doKalibracji\WObj:=Kal2LOnaSK;
+        MotionSup \On \TuneValue:=motionSupStd;
+    ERROR
+        IF ERRNO = ERR_TP_MAXTIME  THEN
+            SkipWarn;
+            TRYNEXT;    
+        ENDIF
+        
+    ENDPROC
+    
+    ! kalibrcja szpikulca na czujniku podwujnym 2L (dwie przecinajace sie fotokomurki)
+    !   inout tooldata doKalibracj - narzedzie które kalibrujemy
+    !   VAR signaldi sygnalPoOsiY  - sygnal z czujnika którego wiazka lezy na osi Y (równolegla do osi Y)
+    !   VAR signaldi sygnalPoOsiX  - sygnal z czujnika którego wiazka lezy na osi X (równolegla do osi X)
+    !   \inout tooldata toolBackup - opcionalny parametr do ktorego ma byc zapisana stara wartosc narzedzia
+    !   \switch aktualizuj         - aktualizuje narzedzie nowa definicja
+    !   |switch zapytaj            - opcionalnie pyta czy zaktualizowac narzedzie
+    PROC kalibrujSzpikulec(inout tooldata doKalibracji, VAR signaldi sygnalPoOsiY, VAR signaldi sygnalPoOsiX \inout tooldata toolBackup \switch aktualizuj |switch zapytaj)
+        VAR robtarget P1;
+        VAR robtarget P2;
+        VAR robtarget P3;
+        VAR robtarget P4;
+        VAR robtarget PZ1;
+        VAR robtarget PZ2;
+        VAR jointtarget J1;
+        VAR jointtarget J2;
+        VAR jointtarget J3;
+        VAR jointtarget J4;
+        VAR jointtarget JZ1;
+        VAR jointtarget JZ2;
+        VAR num tempDeltaZ;
+        VAR num maxError;
+        VAR num meanError;
+        VAR robtarget temp;
+        VAR btnres odpBtn;
+        VAR bool zapisDanych;
+        
+        ErrWrite \I,"========================================================","";
+        ErrWrite \I,"START KALIBRACJI na Kal2U","PROC:kalibrujSzpikulec:start";
+        ErrWrite \I,"========================================================","";
+        MotionSup \On \TuneValue:=motionSupKal;
+        ConfL\On;
+        ! srodek szukamy poruszajac sie w ukladzie odniesienia (ofset)
+        ! koncowke szukamy poruszajac sie po osi narzedzia (reltool)
+        !Stop;
+        MoveJ RelTool(Kal_2U,0,0,-100),v50,z100,doKalibracji\WObj:=Kal2LOnaSK;
+        MoveL Kal_2U,vMoveKalTCP,z0,doKalibracji\WObj:=Kal2LOnaSK;
+        TPWrite "Kal_P1 - kalibracja TCP, punkt 1";
+        MoveL Offs(Kal_P1,0,0,1),vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        ErrWrite \I,"-->> P1 <<--","PROC:kalibrujSzpikulec:P1";
+        !P1:=centerTool2L(doKalibracji, sygnalPoOsiY, sygnalPoOsiX, tempDeltaZ);
+        P1:=fastCenterEndTool2U(doKalibracji, sygnalPoOsiY, sygnalPoOsiX);
+        
+        TPWrite "Kal_P2 - kalibracja TCP, punkt 2";
+        MoveL Offs(Kal_P2,0,0,1),vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        ErrWrite \I,"-->> P2 <<--","PROC:kalibrujSzpikulec:P2";
+        !P2:=centerTool2L(doKalibracji, sygnalPoOsiY, sygnalPoOsiX, tempDeltaZ);
+        P2:=fastCenterEndTool2U(doKalibracji, sygnalPoOsiY, sygnalPoOsiX);
+        
+        TPWrite "Kal_P3 - kalibracja TCP, punkt 3";
+        MoveL Offs(Kal_P3,0,0,1),vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        ErrWrite \I,"-->> P3 <<--","PROC:kalibrujSzpikulec:P3";
+        !P3:=centerTool2L(doKalibracji, sygnalPoOsiY, sygnalPoOsiX, tempDeltaZ);
+        P3:=fastCenterEndTool2U(doKalibracji, sygnalPoOsiY, sygnalPoOsiX);
+        
+        TPWrite "Kal_P4 - kalibracja TCP, punkt 4";
+        MoveL Offs(Kal_P4,0,0,1),vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        ErrWrite \I,"-->> P4 <<--","PROC:kalibrujSzpikulec:P4";
+        !P4:=centerTool2L(doKalibracji, sygnalPoOsiY, sygnalPoOsiX, tempDeltaZ);
+        P4:=fastCenterEndTool2U(doKalibracji, sygnalPoOsiY, sygnalPoOsiX);
+        
+        TPWrite "odkrecamy";
+        MoveL Kal_P3,vMoveKalTCP,z0,doKalibracji\WObj:=Kal2LOnaSK;
+        MoveL Kal_P2,vMoveKalTCP,z0,doKalibracji\WObj:=Kal2LOnaSK;
+        MoveL Kal_P1,vMoveKalTCP,z0,doKalibracji\WObj:=Kal2LOnaSK;
+        
+        !zapisujemy kopie narzedzia
+        IF Present(toolBackup) THEN
+            toolBackup:=doKalibracji;    
+        ENDIF
+        !obliczamy narzedzie
+        SzpikulecNew:=doKalibracji;
+        
+        J1:=CalcJointT(P1,doKalibracji\WObj:=Kal2LOnaSK);
+        J2:=CalcJointT(P2,doKalibracji\WObj:=Kal2LOnaSK);
+        J3:=CalcJointT(P3,doKalibracji\WObj:=Kal2LOnaSK);
+        J4:=CalcJointT(P4,doKalibracji\WObj:=Kal2LOnaSK);
+        
+        MToolTCPCalib J1,J2,J3,J4,SzpikulecNew,maxError,meanError;
+                      
+        ErrWrite \I,"WYZNACZAMY KIERUNEK OSI Z","PROC:kalibrujSzpikulec:kierunek Z";
+        
+        ConfL\Off;
+        MoveL Kal_PZ1,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        temp:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+        Kal_PZ1.robconf:=temp.robconf;
+        ErrWrite \I,"-->> PZ1 <<--","PROC:kalibrujSzpikulec:PZ1";
+        !PZ1:=centerTool2L(doKalibracji, sygnalPoOsiY, sygnalPoOsiX, tempDeltaZ \tylko1Center);
+        PZ1:=fastCenterEndTool2U(doKalibracji, sygnalPoOsiY, sygnalPoOsiX\tylko1CenterPZ1);
+        MoveL Kal_PZ2,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        temp:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+        Kal_PZ2.robconf:=temp.robconf;
+        ErrWrite \I,"-->> PZ2 <<--","PROC:kalibrujSzpikulec:PZ2";
+        !PZ2:=centerTool2L(doKalibracji, sygnalPoOsiY, sygnalPoOsiX, tempDeltaZ \tylko1Center);
+        PZ2:=fastCenterEndTool2U(doKalibracji, sygnalPoOsiY, sygnalPoOsiX\tylko1CenterPZ2);
+        ConfL\On;
+        
+        JZ1:=CalcJointT(PZ1,doKalibracji\WObj:=Kal2LOnaSK);
+        JZ2:=CalcJointT(PZ2,doKalibracji\WObj:=Kal2LOnaSK);
+        
+        MToolRotCalib JZ1,JZ2,SzpikulecNew;
+        ErrWrite \I,"Koniec kalibracji narzedzia na Kal2U"," PROC:kalibrujSzpikulec:wyniki"
+                \RL2:="  maxError="+NumToStr(maxError,2)                            
+                \RL3:=" meanError="+NumToStr(meanError,2);   
+        IF Present(aktualizuj) AND (NOT Present(zapytaj)) THEN
+            doKalibracji:=SzpikulecNew;   
+            ErrWrite \I,"Wybrano opcje aktualizacji kalibrowanego narzedzia","PROC:kalibrujSzpikulec:/aktualizuj";
+            zapisDanych:=backupData("ToolData"\Tool:=doKalibracji\maxError:=maxError\meanError:=meanError);
+        ENDIF     
+        IF Present(zapytaj) THEN
+            UIMsgBox \Header:="Koniec kalibracji SzpikulecNew","Czy zaktualizowac kalibrowane narzedzie?"
+                \MsgLine2:="  maxError="+NumToStr(maxError,2)\MsgLine3:=" meanError="+NumToStr(meanError,2)
+                \Buttons:=btnYesNo \Icon:=iconInfo \Result:=odpBtn;  
+            IF odpBtn=resYes THEN
+                doKalibracji:=SzpikulecNew;   
+                ErrWrite \I,"Operator wybral opcje aktualizacji kalibrowanego narzedzia","PROC:kalibrujSzpikulec:/zapytaj";  
+                zapisDanych:=backupData("ToolData"\Tool:=doKalibracji);
+            ENDIF
+        ELSE    
+            UIMsgBox \Header:="Koniec kalibracji SzpikulecNew","Koniec kalibracji SzpikulecNew"
+                \MsgLine2:="  maxError="+NumToStr(maxError,2)\MsgLine3:=" meanError="+NumToStr(meanError,2)
+                \Icon:=iconInfo\MaxTime:=5;    
+        ENDIF
+        ! n koniec odsowamy sie
+        MoveL RelTool(Kal_2U,0,0,-100),v50,z100,doKalibracji\WObj:=Kal2LOnaSK;
+        MotionSup \On \TuneValue:=motionSupStd;
+    ERROR
+        IF ERRNO = ERR_TP_MAXTIME  THEN
+            SkipWarn;
+            TRYNEXT;    
+        ENDIF
+        
+    ENDPROC
+    
+    ! ustawia narzedzie na srdku wiazki czujnika
+    LOCAL FUNC robtarget toCenter(robtarget startPosition,inout tooldata doKalibracji, VAR signaldi sygnal, pos delta, inout num szerokosc, inout bool mamyBlad)
+        VAR robtarget tempEnd;
+        VAR robtarget tempBack;
+        VAR robtarget tempSearch;
+        VAR robtarget foundA;
+        VAR robtarget foundB;
+        VAR robtarget resultCenter;
+        VAR pos delta1mm;
+        VAR num etap;
+        VAR bool dwaKierunki;
+        VAR pos deltaDwaKierunki;
+        VAR num  deltaDelayDistance;
+        
+        
+
+        delta1mm:=delta*(1/Distance([0,0,0],delta));
+        
+        mamyBlad:=FALSE;
+        szerokosc:=-1;
+        MoveL startPosition,vSlowMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        WaitTime \InPos,0.1;
+        etap:=0;
+        tempSearch:=startPosition;
+        dwaKierunki:=FALSE;
+        ! powinnismy byc w pozycji gdzie szpikuklec przecina wiazki
+        IF TestDI(sygnal) THEN
+            etap:=1;
+            ! szukamy krawedzi ++ (sygnal opadajacy)
+            tempEnd:=Offs(startPosition,delta.x,delta.y,0);
+            ErrWrite \I,"Szukamy krawdedzi A od srodka - szukamy LOW","FUNC:toCenter:"\RL2:="Etap = "+NumToStr(etap,0);  
+            dwaKierunki:=TRUE;
+            SearchL \PStop,sygnal\LowLevel,tempSearch,tempEnd,vSearchKalTCP,doKalibracji\WObj:=Kal2LOnaSK;
+            IF mamyBlad THEN
+                ErrWrite \W,"Nie znaleziono krawedzi od srodka","Podczas szukania krawdedzi A od srodka"
+                    \RL2:="Nie znaleziono zmiany sygnalu."
+                    \RL3:="Moze za maly dystans szukania"
+                    \RL4:="etap = "+NumToStr(etap,0);    
+            ENDIF
+        ENDIF
+        ! odsuwamy sie kawalek (1mm) dalej
+        tempEnd:=Offs(tempSearch,delta1mm.x,delta1mm.y,0);
+        MoveL tempEnd,vSlowMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        
+        etap:=3;
+        ! szukamy krawedzi od zewnatrz (sygnal narastajacy)
+        tempBack:=Offs(startPosition,-delta.x,-delta.y,0);
+        ErrWrite \I,"toCenter","Szukamy krawdedzi A od zewnatrz - szukamy HIGH"\RL2:="Etap = "+NumToStr(etap,0);  
+        SearchL \PStop,sygnal\HighLevel,foundA,tempBack,vSearchKalTCP,doKalibracji\WObj:=Kal2LOnaSK;
+        IF mamyBlad THEN
+            RETURN startPosition;        
+        ENDIF
+        IF dwaKierunki THEN
+            ! logujemy ruznice pozycji wykrycia krawedzi
+            deltaDwaKierunki:=tempSearch.trans-foundA.trans;
+            deltaDelayDistance:=Distance(deltaDwaKierunki,[0,0,0]);
+            TPWrite "  Delta delay A = "+NumToStr(deltaDelayDistance,2);
+            ErrWrite \I,"Delta delay A = "+NumToStr(deltaDelayDistance,2),"FUNC:toCenter:deltaDwaKierunki A:"
+                \RL2:="          x = "+NumToStr(deltaDwaKierunki.x,2)
+                \RL3:="          y = "+NumToStr(deltaDwaKierunki.y,2)
+                \RL4:="          z = "+NumToStr(deltaDwaKierunki.z,2);
+        ENDIF
+        ! nie udalo sie nal
+        tempSearch:=foundA;
+        dwaKierunki:=FALSE;
+        ! powinnismy byc w pozycji gdzie szpikuklec przecina wiazki
+        IF TestDI(sygnal) THEN
+            etap:=4;
+            ErrWrite \I,"Szukamy krawdedzi B od srodka - szukamy LOW","FUNC:toCenter:"\RL2:="Etap = "+NumToStr(etap,0);  
+            dwaKierunki:=TRUE;
+            SearchL \PStop,sygnal\LowLevel,tempSearch,tempBack,vSearchKalTCP,doKalibracji\WObj:=Kal2LOnaSK;  
+            IF mamyBlad THEN
+                ErrWrite \W,"Nie znaleziono krawedzi od srodka","Podczas szukania krawdedzi B od srodka"
+                    \RL2:="Nie znaleziono zmiany sygnalu."
+                    \RL3:="Moze za maly dystans szukania"
+                    \RL4:="etap = "+NumToStr(etap,0);    
+            ENDIF
+        ENDIF
+        ! odsuwamy sie kawalek (1mm) dalej
+        tempBack:=Offs(tempSearch,-delta1mm.x,-delta1mm.y,0);
+        MoveL tempBack,vSlowMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+        etap:=5;
+        ErrWrite \I,"Szukamy krawdedzi B od zewnatrz - szukamy HIGH","FUNC:toCenter:"\RL2:="Etap = "+NumToStr(etap,0); 
+        SearchL \PStop,sygnal\HighLevel,foundB,tempEnd,vSearchKalTCP,doKalibracji\WObj:=Kal2LOnaSK;
+        IF dwaKierunki THEN
+            ! logujemy ruznice pozycji wykrycia krawedzi
+            deltaDwaKierunki:=tempSearch.trans-foundB.trans;
+            deltaDelayDistance:=Distance(deltaDwaKierunki,[0,0,0]);
+            TPWrite "  Delta delay B = "+NumToStr(deltaDelayDistance,2);
+            ErrWrite \I,"Delta delay B = "+NumToStr(deltaDelayDistance,2),"FUNC:toCenter:deltaDwaKierunki B:"
+                \RL2:="          x = "+NumToStr(deltaDwaKierunki.x,2)
+                \RL3:="          y = "+NumToStr(deltaDwaKierunki.y,2)
+                \RL4:="          z = "+NumToStr(deltaDwaKierunki.z,2);
+        ENDIF
+        
+        ! mamy dwie krawedzie - obliczamy pozycje srodkowa
+        resultCenter:=startPosition;
+        resultCenter.trans:=(foundA.trans+foundB.trans)*0.5;
+        ! logujemy wymiar szpikulca - im mniejszy tym lepiej
+        szerokosc:=Distance(foundA.trans, foundB.trans);
+        TPWrite "toCenter fi:"+NumToStr(szerokosc,2);
+        ErrWrite \I,"toCenter fi:"+NumToStr(szerokosc,2),"FUNC:toCenter:"
+        \RL2:=" Szerokosc szpikulca = "+NumToStr(szerokosc,2);
+        
+        RETURN resultCenter;
+        
+    ERROR
+        ! ERR_SIGSUPSEARCH
+        IF ERRNO = ERR_SIGSUPSEARCH  THEN
+            ErrWrite \W,"ERROR: Nie szukamy bo sygnal od razu 'znaleziony'","FUNC:toCenter:"
+                \RL2:="  ERRNO = ERR_SIGSUPSEARCH"
+                \RL3:="  etap="+NumToStr(etap,0);
+            TEST etap
+            CASE 1:
+                dwaKierunki:=FALSE;
+                SkipWarn;
+                TRYNEXT;
+            CASE 4:
+                dwaKierunki:=FALSE;
+                SkipWarn;
+                TRYNEXT;
+            DEFAULT:
+                ErrWrite \W,"ERROR: Brak obslugi etapu "+NumToStr(etap,0),"FUNC:toCenter:"
+                \RL2:="  ERRNO = ERR_SIGSUPSEARCH"
+                \RL3:="  etap="+NumToStr(etap,0);    
+            ENDTEST
+            RETRY;
+        ELSEIF ERRNO = ERR_WHLSEARCH THEN
+        ! sygnal sie nie zmienil
+            ErrWrite \W,"ERROR: Nie znaleziono zmiany sygnalu","FUNC:toCenter:"
+                \RL2:="  ERRNO = ERR_WHLSEARCH"
+                \RL3:="  etap="+NumToStr(etap,0);
+            TEST etap
+            CASE 3:
+                mamyBlad:=TRUE;
+                SkipWarn;
+                TRYNEXT;
+            CASE 5:    
+                dwaKierunki:=FALSE;  
+                mamyBlad:=TRUE;
+                SkipWarn;
+                TRYNEXT;
+            DEFAULT:
+            ENDTEST
+            mamyBlad:=TRUE;
+            TRYNEXT;
+        !TRYNEXT;
+        ELSE   
+            ErrWrite \W,"ERROR: Nie obslugiwany typ bledu","FUNC:toCenter:"
+                \RL2:="  ERRNO = "+ errorReason(ERRNO)
+                \RL3:="  etap="+NumToStr(etap,0);    
+        ENDIF
+        
+    ENDFUNC
+    
+    ! przesowa narzedzie tak aby przecinalo wiazke czujnika
+    LOCAL PROC toSignalHigh(robtarget startPosition,inout tooldata doKaliobracji, var signaldi sygnal, pos delta)
+        VAR robtarget tempStart;
+        VAR robtarget tempEnd;
+        VAR robtarget tempSearch;
+        VAR robtarget tempCurrent;
+        VAR robtarget foundXplus;
+        VAR robtarget foundXminus;
+        VAR robtarget foundYplus;
+        VAR robtarget foundYminus;
+        VAR bool found:=TRUE;
+        VAR signaldi alias_di;
+        
+        AliasIO sygnal,alias_di;
+        
+        
+        !WaitTime \InPos,0.1;
+        !tempStart:=CRobT(\Tool:=Szpikulec\WObj:=Kal2LOnaSK);
+        MoveL startPosition,vSlowMoveKalTCP,fine,doKaliobracji\WObj:=Kal2LOnaSK;
+        ! po osi X szukamy obserwujac sygnal RS_widelkiPOZIOM
+        ! sprawdzamy czy narzedzie przecina wiazke czujnika
+        IF NOT TestDI(alias_di) THEN
+            ! szpikulec nie przecina wizki czujnika
+            ! szukamy po Z
+            tempEnd:=RelTool(startPosition,0,0,Abs(delta.z));
+            ErrWrite \I,"Kal2U:toSignalHigh - szukamy po Z","PROC:toSignalHigh:Przed szukamy po Z"
+                \RL2:=" Abs(delta.z) = "+NumToStr(Abs(delta.z),1);
+            found:=TRUE;
+            SearchL \PStop,alias_di\HighLevel,tempSearch,tempEnd,vSearchKalTCP,doKaliobracji\WObj:=Kal2LOnaSK;
+            IF found ErrWrite \I,"Wynik szukania po Z, dZ = "+NumToStr(tempSearch.trans.z-startPosition.trans.z,0),"PROC:toSignalHigh:Mamy punkt Z"
+                                \RL2:="X="+NumToStr(tempSearch.trans.x,2)
+                                \RL3:="Y="+NumToStr(tempSearch.trans.y,2)
+                                \RL4:="Z="+NumToStr(tempSearch.trans.z,2);
+            IF NOT found THEN
+                found:=TRUE;
+                ! szukamy na boki kierunek -
+                WaitTime \InPos,0.5;
+                tempCurrent:=CRobT(\Tool:=doKaliobracji\WObj:=Kal2LOnaSK);
+                tempEnd:=Offs(tempCurrent,-delta.x,-delta.y,0);  
+                
+                ErrWrite \I,"Kal2U:toSignalHigh - szukamy -","PROC:toSignalHigh:Przed szukamy -";
+                SearchL \PStop,alias_di\HighLevel,tempSearch,tempEnd,vSearchKalTCP,doKaliobracji\WObj:=Kal2LOnaSK;
+                IF found ErrWrite \I,"KAL2L:toSignalHigh - wynik szukania","PROC:toSignalHigh:Mamy punkt Z"
+                                    \RL2:="X="+NumToStr(tempSearch.trans.x,2)
+                                    \RL3:="Y="+NumToStr(tempSearch.trans.y,2)
+                                    \RL4:="Z="+NumToStr(tempSearch.trans.z,2);
+                IF NOT found THEN
+                    found:=TRUE;
+                    ! szukamy na boki kierunek +    
+                    tempEnd:=Offs(tempCurrent,delta.x,delta.y,0); 
+                    ErrWrite \I,"Kal2U:toSignalHigh - szukamy +","PROC:toSignalHigh:Przed szukamy +";
+                    SearchL \PStop,alias_di\HighLevel,tempSearch,tempEnd,vSearchKalTCP,doKaliobracji\WObj:=Kal2LOnaSK;
+                    IF found ErrWrite \I,"Kal2U:toSignalHigh - wynik szukania","PROC:toSignalHigh:Mamy punkt Z"
+                                    \RL2:="X="+NumToStr(tempSearch.trans.x,2)
+                                    \RL3:="Y="+NumToStr(tempSearch.trans.y,2)
+                                    \RL4:="Z="+NumToStr(tempSearch.trans.z,2);
+                    IF NOT found THEN
+                        ! jezeli nadal nie znalezlismy to mamy problem
+                        !ErrWrite "Blad kalibracji na Kal2U","PROC:toSignalHigh:Blad szukania - brak sygnalu ........";
+                        ErrWriteID 25;
+                        Stop;
+                        !EXIT;
+                    ENDIF
+                ENDIF
+            ENDIF
+        ENDIF
+    ERROR
+        IF ERRNO = ERR_WHLSEARCH THEN
+            ! sygnal sie nie zmienil
+            found:=FALSE;
+            SkipWarn;
+            TRYNEXT;
+        ELSE   
+            ErrWrite \W,"ERROR: Nie obslugiwany typ bledu","PROC:toSignalHigh:"
+                \RL2:="  ERRNO = "+ errorReason(ERRNO);
+        ENDIF
+    ENDPROC
+    
+    ! ustawia narzedzie na srodku przeciecia wiazek czujnikow
+    LOCAL FUNC robtarget centerTool2L(inout tooldata doKalibracji,VAR signaldi sygnalPoOsiY,VAR signaldi sygnalPoOsiX, inout num deltaZ\switch tylko1Center|switch onlyX|switch onlyY )
+        VAR robtarget tempStart;
+        VAR robtarget centerX;
+        VAR robtarget centerY;
+        VAR robtarget tempEndZ;
+        VAR robtarget tempBlizej;
+        VAR robtarget tempDalej;
+        VAR num tempSzerokoscX;
+        VAR num tempSzerokoscY;
+        VAR bool bladSzukania;
+        VAR num liczBledy;
+        VAR bool zaDalekoX;
+        VAR bool zaDalekoY;
+        VAR string ZDX;
+        VAR string ZDY;
+        
+        IF NOT Present(onlyY) THEN
+            WaitTime \InPos,0.1;
+            tempStart:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+            ! korygujemy pozycje po osi X by szpikulec przecinal wiazke czujnika
+            ErrWrite \I,"toSignalHigh X","FUNC:centerTool2L";
+            toSignalHigh tempStart, doKalibracji, sygnalPoOsiY, [kal2UDeltaXY,0,kal2UDeltaZ];
+        ENDIF
+        
+        IF NOT Present(onlyX) THEN
+            WaitTime \InPos,0.1;
+            tempStart:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+            ! korygujemy pozycje po osi Y by szpikulec przecinal wiazke czujnika
+            ErrWrite \I,"toSignalHigh Y","FUNC:centerTool2L";
+            toSignalHigh tempStart, doKalibracji, sygnalPoOsiX, [0,kal2UDeltaXY,kal2UDeltaZ];
+        ENDIF
+        
+        tempBlizej:=tempStart;
+        ! mamy punkt przeciecia z czujniami X i Y
+        ! no to szukamy koncowki
+        deltaZ:=1;
+        tempSzerokoscX:=3;
+        tempSzerokoscY:=3;
+        ! WHILE TestDI(RS_widelkiPOZIOM) AND TestDI(RS_widelkiSKOSNE) DO
+        WHILE tempSzerokoscX>=szerokoscMinimalna AND tempSzerokoscY>=szerokoscMinimalna DO
+            zaDalekoX:=FALSE;
+            zaDalekoY:=FALSE;
+            IF NOT Present(onlyY) THEN
+                ! szukamy srodka po osi X
+                WaitTime \InPos,0.2;
+                tempStart:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+                ErrWrite \I,"szukamy srodka po osi X","FUNC:centerTool2L";
+                bladSzukania:=TRUE;
+                liczBledy:=0;
+                WHILE bladSzukania AND (NOT zaDalekoX) DO
+                    liczBledy:=liczBledy+1;
+                    TPWrite "...szukamy srodka po osi X";
+                    ErrWrite \I,"...szukamy srodka po osi X","FUNC:centerTool2L";
+                    centerX:=toCenter(tempStart, doKalibracji, sygnalPoOsiY, [kal2UDeltaXYcenter,0,0], tempSzerokoscX, bladSzukania);  
+                    IF liczBledy>3 zaDalekoX:=TRUE;
+                ENDWHILE
+                IF NOT zaDalekoX THEN
+                    MoveL centerX,vSlowMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+                    ! odsowamy sie po Z by przyblizyc sie do koncowki narzedzia
+                    tempBlizej:=centerX;
+                ENDIF
+            ENDIF
+            
+            IF NOT Present(onlyX) THEN
+                ! szukamy srodka po osi Y
+                WaitTime \InPos,0.2;
+                tempStart:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+                ErrWrite \I,"szukamy srodka po osi Y","FUNC:centerTool2L";
+                bladSzukania:=TRUE;
+                liczBledy:=0;
+                WHILE bladSzukania  AND (NOT zaDalekoY) DO
+                    liczBledy:=liczBledy+1;
+                    TPWrite "...szukamy srodka po osi Y";
+                    ErrWrite \I,"...szukamy srodka po osi Y","FUNC:centerTool2L";
+                    centerY:=toCenter(tempStart,doKalibracji, sygnalPoOsiX, [0,kal2UDeltaXYcenter,0], tempSzerokoscY, bladSzukania);
+                    IF liczBledy>3 zaDalekoY:=TRUE;
+                ENDWHILE
+                IF NOT zaDalekoY THEN
+                    MoveL centerY,vSlowMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+                    ! odsowamy sie po Z by przyblizyc sie do koncowki narzedzia
+                    tempBlizej:=centerY;
+                ENDIF
+            ENDIF
+            
+            
+            IF Present(tylko1Center) THEN
+                RETURN tempBlizej;    
+            ENDIF
+            
+            ! sprawdzamy czy to koniec
+            IF deltaZ<minDeltaZ THEN
+                ErrWrite \I,"Osiagnieto minimalna odleglosc Z","FUNC:centerTool2L: deltaZ<minDeltaZ"\RL2:="  deltaZ="+NumToStr(deltaZ,2);
+                RETURN tempBlizej;     
+            ENDIF
+            
+            IF Present(onlyX) AND tempSzerokoscX<szerokoscMinimalna THEN
+                ! osiagnieto minimalna szerokosc szpikulca X
+                ErrWrite \I,"Osiagnieto minimalna szerokosc X szpikulca","FUNC:centerTool2L:"
+                            \RL2:="  tempSzerokoscX="+NumToStr(tempSzerokoscX,2);
+                RETURN tempBlizej;                 
+            ENDIF
+            
+            IF Present(onlyY) AND tempSzerokoscY<szerokoscMinimalna THEN
+                ! osiagnieto minimalna szerokosc szpikulca Y
+                ErrWrite \I,"Osiagnieto minimalna szerokosc Y szpikulca","FUNC:centerTool2L:"
+                            \RL2:="  tempSzerokoscY="+NumToStr(tempSzerokoscY,2);
+                RETURN tempBlizej;                 
+            ENDIF
+            
+            IF tempSzerokoscX<szerokoscMinimalna AND tempSzerokoscY<szerokoscMinimalna THEN
+                ! osiagnieto minimalna szerokosc szpikulca
+                ErrWrite \I,"Osiagnieto minimalna szerokosc szpikulca","FUNC:centerTool2L:"
+                            \RL2:="  tempSzerokoscX="+NumToStr(tempSzerokoscX,2)
+                            \RL3:="  tempSzerokoscY="+NumToStr(tempSzerokoscY,2);
+                RETURN tempBlizej; 
+            ENDIF
+            
+            !gdy nie udane szukanie na jednym z czujnikow
+            IF zaDalekoX THEN
+                ZDX:="True";
+            ELSE
+                ZDX:="False";
+            ENDIF
+            IF zaDalekoY THEN
+                ZDY:="True";
+            ELSE
+                ZDY:="False";
+            ENDIF
+            IF zaDalekoX OR zaDalekoY THEN
+                ErrWrite \W,"Brak lub zadaleko to cofamy","FUNC:centerTool2L:"
+                    \RL2:=" deltaZ="+NumToStr(deltaZ,2)
+                    \RL3:="   zaDalekoX="+ZDX
+                    \RL4:="   zaDalekoY="+ZDY;
+                deltaZ:=deltaZ*0.5;
+                tempDalej:=RelTool(tempBlizej,0,0,-deltaZ);    
+                MoveL tempDalej,vSlowMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+            ELSE
+                tempDalej:=RelTool(tempBlizej,0,0,-deltaZ);
+                ErrWrite \I,"Przesowamy sie w kierunku konca","FUNC:centerTool2L:"
+                    \RL2:=" deltaZ="+NumToStr(deltaZ,2);
+                MoveL tempDalej,vSlowMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+                
+                WaitTime \InPos,0.2;
+                WHILE (NOT ((TestDI(sygnalPoOsiY) OR Present(onlyY))AND (TestDI(sygnalPoOsiX) OR Present(onlyX)))) AND deltaZ>minDeltaZ  DO
+                    deltaZ:=deltaZ*0.5;
+                    tempDalej:=RelTool(tempBlizej,0,0,-deltaZ);
+                    ErrWrite \I,"Brak sygnalow to cofamy","FUNC:centerTool2L:"
+                        \RL2:=" deltaZ="+NumToStr(deltaZ,2);
+                    MoveL tempDalej,vSlowMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+                    WaitTime \InPos,0.2;
+                ENDWHILE
+            ENDIF
+            
+
+        ENDWHILE
+        ! wyszlismy z petli....
+        IF deltaZ<minDeltaZ THEN
+            ErrWrite \I,"Osiagnelismy minimalne przesuniecie Z","FUNC:centerTool2L:"
+                \RL2:=" deltaZ < minDeltaZ"
+                \RL3:=" deltaZ="+NumToStr(deltaZ,2);    
+        ENDIF
+        
+        IF tempSzerokoscX<szerokoscMinimalna OR tempSzerokoscY<szerokoscMinimalna THEN
+            ErrWrite \I,"Osiagnelismy minimalna szerokosc minimalna szerokosc","FUNC:centerTool2L:"
+                \RL2:=" tempSzerokoscX="+NumToStr(tempSzerokoscX,2)
+                \RL3:=" tempSzerokoscY="+NumToStr(tempSzerokoscY,2);    
+        ENDIF
+        RETURN tempBlizej; 
+        
+    ENDFUNC
+    
+    LOCAL FUNC bool fastCenter1U(inout tooldata doKalibracji,VAR signaldi sygnal, VAR speeddata vSearch , inout robtarget P1, inout robtarget P2, inout robtarget result, inout num szer)
+
+        VAR robtarget searchTargetP1;
+        VAR robtarget searchTargetP2;
+        VAR bool foundP1;
+        VAR bool foundP2;
+        VAR num krokSzukania;
+        
+        krokSzukania:=0;
+        ! szukamy srodka wzdluz kierunku osi Y
+        ! szukamy w kierunku dodatnim osi Y
+        MoveL P2, vSlowMoveKalTCP, fine, doKalibracji \WObj:=Kal2LOnaSK;
+        WaitTime \InPos,0.1;
+        foundP1:=TRUE;
+        krokSzukania:=10;
+        ErrWrite \I,"Szukamy od P2 --> P1 ("+ArgName(sygnal)+")","";
+        SearchL \PStop,sygnal\HighLevel,searchTargetP1,P1,vSearch,doKalibracji\WObj:=Kal2LOnaSK;
+        logSensor sygnal,  sygnal, Kal2UsumaDI \info:="1UP1";
+        IF foundP1 THEN
+            ErrWrite \I,"Wynik szukania szpikulca po kierunku +","PROC:fastCenter1U:Mamy punkt searchTargetP1 (" +ArgName(sygnal)+")"
+                \RL2:="X="+NumToStr(searchTargetP1.trans.x,2)
+                \RL3:="Y="+NumToStr(searchTargetP1.trans.y,2)
+                \RL4:="Z="+NumToStr(searchTargetP1.trans.z,2);
+        ELSE
+            ! cos poszlo nie tak
+            ErrWrite \W,"Nie udane szukania szpikulca po kierunku +","PROC:fastCenter1U:Nie znaleziono punktu searchTargetP1"
+                \RL2:="   Brak sygnalu "+ArgName(sygnal);
+            ! test
+            MoveL P1, vSlowMoveKalTCP, fine, doKalibracji \WObj:=Kal2LOnaSK;
+            WHILE TRUE DO
+                MoveL P2, vSlowMoveKalTCP, fine, doKalibracji \WObj:=Kal2LOnaSK;
+                MoveL P1, vSearch, fine, doKalibracji \WObj:=Kal2LOnaSK;    
+            ENDWHILE
+            Stop;
+        ENDIF
+                      
+        ! szukamy w kierunku ujemnym osi Y
+        
+
+        foundP2:=TRUE;
+        MoveL P1, vSlowMoveKalTCP, fine, doKalibracji \WObj:=Kal2LOnaSK;
+        WaitTime \InPos,0.1;
+        krokSzukania:=20;
+        ErrWrite \I,"Szukamy od P1 --> P2 ("+ArgName(sygnal)+")","";
+        SearchL \PStop,sygnal\HighLevel,searchTargetP2,P2,vSearch,doKalibracji\WObj:=Kal2LOnaSK;
+        logSensor sygnal,  sygnal, Kal2UsumaDI \info:="1UP2";
+        IF foundP2 THEN
+            ErrWrite \I,"Wynik szukania szpikulca po kierunku -","PROC:fastCenter1U:Mamy punkt searchTargetP2 (" +ArgName(sygnal)+")"
+                \RL2:="X="+NumToStr(searchTargetP2.trans.x,2)
+                \RL3:="Y="+NumToStr(searchTargetP2.trans.y,2)
+                \RL4:="Z="+NumToStr(searchTargetP2.trans.z,2);
+        ELSE
+            ! cos poszlo nie tak
+            ErrWrite \W,"Nie udane szukania szpikulca po kierunku -","PROC:fastCenter1U:Nie znaleziono punktu searchTargetP2"
+                \RL2:="   Brak sygnalu "+ArgName(sygnal);
+            ! test
+            MoveL P2, vSlowMoveKalTCP, fine, doKalibracji \WObj:=Kal2LOnaSK;
+            WHILE TRUE DO
+                MoveL P1, vSlowMoveKalTCP, fine, doKalibracji \WObj:=Kal2LOnaSK;
+                MoveL P2, vSearch, fine, doKalibracji \WObj:=Kal2LOnaSK;    
+            ENDWHILE
+            
+            Stop;    
+        ENDIF
+        
+        ! tutaj powinny byc znalezione 2 krawdzie
+        IF foundP1 AND foundP2 THEN
+            result:=searchTargetP1;
+            result.trans:= (searchTargetP1.trans+searchTargetP2.trans)*0.5;
+            MoveL result, vMoveKalTCP, fine, doKalibracji \WObj:=Kal2LOnaSK;
+            szer:=Distance(searchTargetP1.trans, searchTargetP2.trans);
+            ErrWrite \I,"Mamy szerokosc = "+NumToStr(szer,2)+" dla "+ArgName(sygnal),"PROC:fastCenter1U:Mamy srodek wzgledem "+ArgName(sygnal);
+            RETURN TRUE;
+        ELSE
+            ! cos poszlo nie tak
+            Stop; 
+        ENDIF
+                            
+        RETURN FALSE;                    
+
+        ERROR
+            IF ERRNO = ERR_WHLSEARCH THEN
+                ! sygnal sie nie zmienil
+                TEST krokSzukania
+                CASE 10:
+                    foundP1:=FALSE;
+                CASE 20:
+                    foundP2:=FALSE;
+                DEFAULT:
+                ENDTEST
+                SkipWarn;
+                TRYNEXT;
+            ELSEIF ERRNO = ERR_SIGSUPSEARCH THEN
+                ErrWrite \W,"ERROR: ERR_SIGSUPSEARCH","PROC:toSignalHigh: nie szukamy bo od razu mamy znalezione"
+                    \RL2:="  zwiekszyc szer? "
+                    \RL3:="  krokSzukania = "+NumToStr(krokSzukania,0)
+                    \RL4:="         sygnal: "+ArgName(sygnal);
+                Stop;
+                EXIT;    
+            ELSE   
+                ErrWrite \W,"ERROR: Nie obslugiwany typ bledu","PROC:toSignalHigh:"
+                    \RL2:="  ERRNO = "+ errorReason(ERRNO);
+                Stop;
+                EXIT;
+            ENDIF
+    ENDFUNC
+    
+    LOCAL PROC testRobT(INOUT robtarget targetToTest)
+        IF targetToTest.trans.x>kal2UmaxDeltaX targetToTest.trans.x:=kal2UmaxDeltaX;
+        IF targetToTest.trans.x<-kal2UmaxDeltaX targetToTest.trans.x:=-kal2UmaxDeltaX;
+        IF targetToTest.trans.y>kal2UmaxDeltaY targetToTest.trans.y:=kal2UmaxDeltaY;
+        IF targetToTest.trans.y<-kal2UmaxDeltaY targetToTest.trans.y:=-kal2UmaxDeltaY;
+    ENDPROC
+    
+    LOCAL FUNC bool fastCenter2U(inout tooldata doKalibracji, VAR signaldi sygnalPoOsX, VAR signaldi sygnalPoOsY, VAR speeddata vSearch, inout num szerX, inout num szerY, inout robtarget resultT \switch onlyX |switch onlyY)
+        VAR robtarget startTarget;
+        VAR robtarget xP1;
+        VAR robtarget xP2;
+        VAR robtarget yP1;
+        VAR robtarget yP2;
+        VAR num offsetX;
+        VAR num offsetY;
+        VAR bool centerX;
+        VAR bool centery;
+        VAR robtarget resultX;
+        VAR robtarget resultY;
+        
+        WaitTime \InPos,0.2;
+        startTarget:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+        offsetX:=szerX;
+        offsetY:=szerY;
+        IF offsetX<kal2UminDelta offsetX:=kal2UminDelta;
+        IF offsetY<kal2UminDelta offsetY:=kal2UminDelta;
+        
+        xP1:=Offs(startTarget, offsetX, 0, 0);
+        xP2:=Offs(startTarget, -offsetX, 0, 0);
+        
+        ErrWrite \I,"    Dystans xP1-xP2:  "+NumToStr(Distance(xP1.trans,xP2.trans),0),"";
+        
+        yP1:=Offs(startTarget, 0, offsetY, 0);
+        yP2:=Offs(startTarget, 0, -offsetY, 0);
+        
+        testRobT xP1;
+        testRobT xP2;
+        testRobT yP1;
+        testRobT yP2;
+        
+        centerX:=TRUE;
+        centerY:=TRUE;
+        
+        WaitTime \InPos,1;
+        IF NOT Present(onlyY) THEN
+            centerX:=fastCenter1U(doKalibracji, sygnalPoOsY,vSearch, xP1, xP2, resultX, szerX);
+            IF centerX THEN
+                yP1:=Offs(resultX, 0, offsetY, 0);
+                yP2:=Offs(resultX, 0, -offsetY, 0);
+            ENDIF
+            logSensor sygnalPoOsX,  sygnalPoOsY, Kal2UsumaDI \info:="2UX"; 
+        ENDIF
+        
+        IF NOT Present(onlyX) THEN
+            ErrWrite \I,"    Dystans yP1-yP2:  "+NumToStr(Distance(yP1.trans,yP2.trans),0),"";
+            centerY:=fastCenter1U(doKalibracji, sygnalPoOsX,vSearch, yP1, yP2, resultY, szerY);
+            logSensor sygnalPoOsX,  sygnalPoOsY, Kal2UsumaDI \info:="2UY";
+        ENDIF
+        
+        
+        !WaitTime 10;
+        
+        IF centerX AND centerY THEN
+            IF Present(onlyX) THEN
+                resultT:=resultX;
+            ELSE
+                resultT:=resultY; 
+            ENDIF
+            logSensor sygnalPoOsX,  sygnalPoOsY, Kal2UsumaDI \info:="2U_BM";
+            MoveL resultT,vSlowMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+            logSensor sygnalPoOsX,  sygnalPoOsY, Kal2UsumaDI \info:="2UX_AM";
+            RETURN TRUE;
+        ELSE
+            !nie udane wyznaczenie srodka
+            ErrWrite \W, "Nie udany dojazd do srodka szpikulca","PROC:fastCenter2U:Szpikulec nie przecial wiazki czujnika"
+                \RL2:="Prawdopodobnie za daleko sie odsunelismy";
+        ENDIF
+        RETURN FALSE;
+    ENDFUNC
+    
+    LOCAL PROC logSensor(VAR signaldi sygnalPoOsX, VAR signaldi sygnalPoOsY, VAR signaldi sygnalSumaXY \string info)
+        VAR string SX:="0";
+        VAR string SY:="0";
+        VAR string Suma:="0";
+        VAR string infoTemp:="";
+        
+        IF NOT logsignalKal2U RETURN;
+        
+        IF Present(info) infoTemp:=" ("+info+")-";
+        
+        IF TestDI(sygnalPoOsX) SX:="1";
+        IF TestDI(sygnalPoOsY) SY:="1";
+        IF TestDI(sygnalSumaXY) Suma:="1";
+        
+        ErrWrite \I,"Stan czujnikow: "+SX+","+SY+","+Suma+infoTemp,"Stan czujnikow: "+SX+","+SY+","+Suma
+        \RL2:="  "+ArgName(sygnalPoOsX)+"="+SX
+        \RL3:="  "+ArgName(sygnalPoOsY)+"="+SY
+        \RL4:="  "+ArgName(sygnalSumaXY)+"="+Suma;
+        
+    ENDPROC
+    
+    
+    
+    ! szukanie konca po kierunku Z osi narzedzia
+    !
+    ! inout tooldata doKalibracji
+    ! VAR signaldi sygnalSumaXY - suma sygnalow do szukania konca lub pojedynczy sygnal jezeli wyznaczamy pozycje kalibratora
+    !
+    LOCAL FUNC bool fastEnd2U(inout tooldata doKalibracji, VAR signaldi sygnalSumaXY, inout robtarget resultEnd, inout num distZ)
+        VAR robtarget startTarget;
+        VAR robtarget endTarget;
+        VAR robtarget searchTarget;
+        VAR bool found;
+        ErrWrite \I,"Szukamy konca po kierunku osi Z","FUNC:fastEnd2U:...start...";
+        
+        ! na poczatku powinna byc syma sygnalow 
+        logSensor aliasSygnalPoOsiX,  aliasSygnalPoOsiY, Kal2UsumaDI \info:="fastEnd2U"; 
+        IF NOT TestDI(sygnalSumaXY) THEN
+            ! to mamy problem, nie powinno tak byc
+            
+            ErrWrite \W,"Brak sygnalu Kal2U na poczatku sukania po Z","PROC:fastEnd2U: Brak sygnalu:"
+                \RL2:="                "+ArgName(sygnalSumaXY);
+            Stop;
+            RETURN FALSE;
+        ENDIF
+        
+        WaitTime \InPos,0.2;
+        startTarget:=CRobT(\Tool:=doKalibracji\WObj:=Kal2LOnaSK);
+        endTarget:=RelTool(startTarget,0,0,-kal2UmaxZend);
+        found:=TRUE;
+        SearchL \PStop,sygnalSumaXY\LowLevel,searchTarget,endTarget,vSearchKalTCP,doKalibracji\WObj:=Kal2LOnaSK;
+        IF found THEN
+            distZ:=Distance(startTarget.trans, searchTarget.trans);
+            resultEnd:=searchTarget;
+            ErrWrite \I,"----> Mamy koniec na dystansie = "+NumToStr(distZ,2),"PROC:fastEnd2U:Mamy potencjalny koniec szpikulca"
+                \RL2:="X="+NumToStr(searchTarget.trans.x,2)
+                \RL3:="Y="+NumToStr(searchTarget.trans.y,2)
+                \RL4:="Z="+NumToStr(searchTarget.trans.z,2);
+            RETURN TRUE;
+        ELSE
+            ! cos poszlo nie tak
+            Stop;    
+        ENDIF
+        RETURN FALSE;
+    ERROR
+        IF ERRNO = ERR_WHLSEARCH THEN
+            ! sygnal sie nie zmienil
+            found:=FALSE;
+            SkipWarn;
+            TRYNEXT;
+        ELSE   
+            ErrWrite \W,"ERROR: Nie obslugiwany typ bledu","PROC:fastEnd2U:"
+                \RL2:="  ERRNO = "+ errorReason(ERRNO);
+            Stop;
+            EXIT;
+        ENDIF    
+        
+    ENDFUNC
+    
+    FUNC bool testKryteriumKonca(robtarget punkty{*}\switch minimum)
+        VAR num rozmiar;
+        VAR num dist;
+        VAR num max:=0;
+        VAR num min:=999;
+        VAR bool result:=TRUE;
+        
+        rozmiar:=Dim(punkty,1);
+        FOR a FROM 1 TO rozmiar-1 DO
+            FOR b FROM a+1 TO rozmiar DO
+                dist:=Distance(punkty{a}.trans,punkty{b}.trans);
+                IF max<dist max:=dist;
+                IF min>dist min:=dist;
+                ErrWrite \I,"----> Kryt konca: "+NumToStr(dist,3),"FUNC:testKryteriumKonca"
+                    \RL2:=" dla pary: "+NumToStr(a,0)+","+NumToStr(b,0);
+                IF dist>kal2UkrytKonca result:=FALSE;
+                
+            ENDFOR
+        ENDFOR
+        ErrWrite \I,"----> Kryt konca max: "+NumToStr(max,3)+ " min: "+NumToStr(min,3),"FUNC:testKryteriumKonca:"
+            \RL2:="   max = "+NumToStr(max,3)
+            \Rl3:="   min = "+NumToStr(min,3)
+            \RL4:="   kal2UkrytKonca = "+NumToStr(kal2UkrytKonca,3);
+        IF Present(minimum) THEN
+            IF min<kal2UkrytKonca RETURN TRUE;
+        ENDIF
+        RETURN result;
+    ENDFUNC
+    
+    ! ustawia koniec narzedzia na srodku przeciecia wiazek czujnikow
+    ! inout tooldata doKalibracji - narzedzie kalibrowane
+    ! VAR signaldi sygnalPoOsiY   - sygnal z czujnika kturego wiazka jest rownolegla do odi Y ukladu Kal2LOnaSK
+    ! VAR signaldi sygnalPoOsiX   - sygnal z czujnika kturego wiazka jest rownolegla do odi X ukladu Kal2LOnaSK
+    ! \switch tylko1Center        - tylko centrujemy, do wynaczania kierunku szpikulca
+    ! |switch onlyX               - ustawiamy koniec na wiazce czujnika X, do ustalania ukladu czujnika 2U
+    ! |switch onlyY               - ustawiamy koniec na wiazce czujnika Y, do ustalania ukladu czujnika 2U
+    LOCAL FUNC robtarget fastCenterEndTool2U(inout tooldata doKalibracji,VAR signaldi sygnalPoOsiY,VAR signaldi sygnalPoOsiX \switch tylko1CenterPZ1|switch tylko1CenterPZ2 |switch onlyX |switch onlyY )
+        VAR bool resultFC2U;
+        VAR bool resultFE2U;
+        VAR num szerX;
+        VAR num szerY;
+        VAR robtarget resultRT_FC2U;
+        VAR robtarget resultRT_FE2U;
+        VAR num distanceZ{3};
+        VAR num distanceZtemp;
+        VAR num licznikProb;
+        VAR robtarget resultRT;
+        VAR robtarget endPoints{3};
+        VAR bool koniec:=FALSE;
+        VAR speeddata vSerch;
+    
+        szerX:=kal2UstartSzer;
+        szerY:=kal2UstartSzer;
+        IF Present(tylko1CenterPZ1) THEN
+            ! na wysokosci PZ1 szpikulec jes szerszy wiec musimy zwiekszyc zakres szukania
+            szerX:=kal2UstartSzerPZ1;
+            szerY:=kal2UstartSzerPZ1;
+        ENDIF
+        resultFC2U:=TRUE;
+        distanceZ{1}:=kal2UmaxZend;
+        distanceZ{2}:=kal2UmaxZend;
+        distanceZ{3}:=kal2UmaxZend;
+        endPoints{1}.trans:=[0,0,0];
+        endPoints{2}.trans:=[0,0,0];
+        endPoints{3}.trans:=[0,0,0];
+        licznikProb:=0;
+        
+        WHILE resultFC2U AND licznikProb<=kal2UmaxLiczProb DO
+            Incr licznikProb;
+            ! gdy jest to pierwsze szukanie z wielu to je przyspieszamy
+            IF licznikProb=1 AND (NOT (Present(tylko1CenterPZ1) OR Present(tylko1CenterPZ2))) THEN
+                vSerch:=vSearchFastKalTCP;
+            ELSE
+                vSerch:=vSearchKalTCP;
+            ENDIF
+            ErrWrite \I,"----> Proba nr "+NumToStr(licznikProb,0),"FUNC:fastCenterEndTool2U";
+            ! centrujemy narzedzie (szpikulec)
+            resultFC2U:=fastCenter2U(doKalibracji, sygnalPoOsiX, sygnalPoOsiY, vSerch, szerX, szerY, resultRT_FC2U);
+            
+            IF resultFC2U THEN
+                IF Present(tylko1CenterPZ1) OR Present(tylko1CenterPZ2) THEN
+                    ! tylko centrujemy wiec koniec
+                    MoveL resultRT_FC2U,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+                    resultRT:=resultRT_FC2U;
+                    RETURN resultRT;
+                ENDIF
+                ! udane wycentrowanie narzedzia, odsowamy sie po Z
+                distanceZtemp:=kal2UmaxZend;
+                MoveL resultRT_FC2U,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+                WaitTime \InPos,0.2;
+                resultFE2U:=fastEnd2U(doKalibracji, Kal2UsumaDI, resultRT_FE2U, distanceZtemp);
+                IF resultFE2U THEN
+                    ! udane znalezienie konca
+                    distanceZ{1}:=distanceZ{2};
+                    distanceZ{2}:=distanceZ{3};
+                    distanceZ{3}:=distanceZtemp;
+                    endPoints{1}:=endPoints{2};
+                    endPoints{2}:=endPoints{3};
+                    endPoints{3}:=resultRT_FE2U;
+                    !
+                    IF licznikProb>=3 THEN
+                        koniec:=testKryteriumKonca(endPoints\minimum);    
+                    ENDIF
+                    !
+                    IF (distanceZ{1}<kal2UminZend AND distanceZ{2}<kal2UminZend AND distanceZ{3}<kal2UminZend) OR koniec THEN
+                        ! mamy koniec w celu
+                        MoveL resultRT_FE2U,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+                        resultRT:=resultRT_FE2U;
+                        RETURN resultRT;
+                    ELSE
+                        ! zawsze cofamy bo czujniki maja blad pozycji
+                        IF distanceZtemp<kal2UminZend OR TRUE THEN
+                            ErrWrite \I," Cofamy po Z o "+NumToStr(kal2UbackZ,0),"";
+                            MoveL RelTool(resultRT_FE2U,0,0,kal2UbackZ),vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;   
+                        ELSE
+                            MoveL resultRT_FE2U,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;    
+                        ENDIF
+                    ENDIF
+                ENDIF
+            ELSE
+                ! nie udane znalezienie srodka
+                ! jezeli to pierwsze szukanie to duzy problem
+                IF licznikProb<2 THEN
+                    ErrWrite \W, "Nie mozemy znalezc srodka!","FUNC:astCenterEndTool2U:Nie mozemy znalesc srodka przy pierwszej probie"
+                        \RL2:="  Brak sygnalow z kalibratora"
+                        \RL3:="  Zla pozycja kalibratora lub Kal2LOnaSK"
+                        \RL4:="  Zla wstepna definicja narzedzia";
+                ENDIF
+                ! sprawdzamy czy koniec
+                IF distanceZ{1}<kal2UminZend AND distanceZ{2}<kal2UminZend AND distanceZ{3}<kal2UminZend THEN
+                        ! mamy koniec w celu
+                        MoveL resultRT_FE2U,vMoveKalTCP,fine,doKalibracji\WObj:=Kal2LOnaSK;
+                        resultRT:=resultRT_FE2U;
+                        RETURN resultRT;
+                ENDIF
+                
+            ENDIF
+        ENDWHILE    
+    
+    
+    ENDFUNC
+    
+    
+    
+ENDMODULE

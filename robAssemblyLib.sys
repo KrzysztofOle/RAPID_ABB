@@ -1,0 +1,815 @@
+MODULE robAssemblyLib(SYSMODULE)
+    !flaga debuggerska (wszystkie logi wlaczone)
+    PERS bool debugMode:=FALSE;
+    !komunikacja z robotem duzym
+    VAR bool commandInBuffor:=FALSE;
+    PERS num waitTimeForBigRobot:=30;
+    !obsluga stanowisk
+    PERS num waitTimeForWkladActuators:=10;
+    PERS num waitTimeForPrasaActuators:=10;
+    PERS num waitTimeForPlaszczActuators:=10;
+    !rozpoznawanie typu robota (stanowiska)
+    PERS num robot;
+    CONST dionum robotSolniczka:=1;
+    CONST dionum robotGalant:=2;
+    CONST dionum robotBig:=3;
+    !szukanie taskow, katalogow, plikow, procedur
+    VAR bool foundDir;
+    CONST num procedureMaxNum:=20;
+    PERS string tasksProcedures{20,procedureMaxNum};
+    !stale potrzebne do operacji na osiach (rotacje, dokrecania, align, itp)
+    CONST dionum axisX:=1;
+    CONST dionum axisY:=2;
+    CONST dionum axisZ:=3;
+    !rozmiar detalu z AVS
+    PERS num AVS_detailSize;
+    !definicja strefy wewnatrz celi
+    PERS wzstationary wzRobSolniczkaWkladZone;
+    PERS wzstationary wzRobSolniczkaPlaszczZone;
+    !drukowanie informacji na padzie robota w zaleznosci od flagi debuggerskiej
+    PROC TPWriteLib(string message\switch debugOnly)
+        VAR bool showLog;
+
+        IF debugMode=TRUE THEN
+            TPWrite message;
+        ELSE
+            IF NOT Present(debugMode) THEN
+                TPWrite message;
+            ENDIF
+        ENDIF
+    ENDPROC
+
+    !procedura wysylajaca komende do robota duzego
+    FUNC bool sendCommand(VAR signaldo command,\switch sendAtBeginning,VAR signaldi response,\INOUT bool retryFlag,\string timeoutString,\VAR signaldo nextCmd,\string procBeforeNextCmd,\num updateProcessStateWhenInBuffer\num updateProcessStateWhenMoveDone)
+        VAR bool fault:=FALSE;
+        VAR bool cmdRealized:=FALSE;
+
+        !nie mozna wyslac komendy z duzego robota do duzego robota, dlatego zwracamy false
+        IF robot=robotBig RETURN FALSE;
+
+        !sprawdzamy czy rozkaz zostal wyslany do bufora
+        IF NOT commandInBuffor THEN
+            !wystaw sygnal do duzego robota ze moze wlozyc solniczke
+            IF Present(sendAtBeginning) Set command;
+            !czekamy na potwierdzenie dodania rozkazu do bufora
+            WaitDI response,1\MaxTime:=waitTimeForBigRobot\TimeFlag:=fault;
+            IF fault THEN
+                !polecenie nie trafilo do bufora robota duzego
+                commandInBuffor:=FALSE;
+            ELSE
+                !potwierdzamy ze polecenie jest w buforze robota duzego
+                commandInBuffor:=TRUE;
+                !resetujemy to polecenie
+                Reset command;
+                IF robot=robotSolniczka AND Present(updateProcessStateWhenInBuffer)%"newProcessState"%updateProcessStateWhenInBuffer;
+            ENDIF
+        ENDIF
+        !sprawdz czy polecenie jest w buforze
+        IF commandInBuffor THEN
+            !czekaj na wykonanie polecenia
+            WaitDI response,0\MaxTime:=waitTimeForBigRobot*2\TimeFlag:=fault;
+            IF fault THEN
+                ErrWrite\I,timeoutString,"Robot duzy jest zajety inny poleceniem. Poczekaj az zakonczy dzialanie";
+                IF Present(retryFlag) retryFlag:=TRUE;
+            ELSE
+                !wlozono wklad - kasujemy odpowiednie flagi
+                commandInBuffor:=FALSE;
+                cmdRealized:=TRUE;
+                IF Present(retryFlag) retryFlag:=FALSE;
+                IF Present(procBeforeNextCmd)%procBeforeNextCmd %;
+                IF Present(nextCmd) Set nextCmd;
+                IF robot=robotSolniczka AND Present(updateProcessStateWhenMoveDone)%"newProcessState"%updateProcessStateWhenMoveDone;
+            ENDIF
+        ENDIF
+
+        RETURN cmdRealized;
+
+    ERROR
+        IF errno=ERR_REFUNKPRC THEN
+            ErrWrite\W,"ZLA NAZWA PROCEDURY!","Podczas wysylania polecenia do robBig wykryto niepoprawna nazwe procedury";
+            procBeforeNextCmd:=UIAlphaEntry(\Header:="ERROR: wyslanie komendy do robBig",\Message:="Nie ma funkcji o nazwie: "+procBeforeNextCmd,\InitString:=procBeforeNextCmd);
+            RETRY;
+        ENDIF
+    ENDFUNC
+
+    !procedura sprawdzajaca typ robota (stanowiska)
+    PROC checkRobotType()
+        VAR string robotType;
+
+        !sprawdzamy jaki jest to robot
+        robotType:=GetSysInfo(\RobotType);
+        !pobieramy pierwsze znaki - zeby zobaczyc ktore stanowisko
+        robotType:=StrPart(robotType,1,4);
+        !sprawdzamy czy jest to robSolniczka
+        TEST robotType
+        CASE "1600":
+            robot:=robotGalant;
+            ErrWrite\I,"ROZPOZNANO ROBOTA!","Pracujesz na robocie IRB1600 - na stanowisku robGalant";
+        CASE "2600":
+            robot:=robotSolniczka;
+            ErrWrite\I,"ROZPOZNANO ROBOTA!","Pracujesz na robocie IRB2600 - na stanowisku robSolniczka";
+        CASE "6640":
+            robot:=robotBig;
+            ErrWrite\I,"ROZPOZNANO ROBOTA!","Pracujesz na robocie IRB6640 - na stanowisku robBig";
+        DEFAULT:
+            robot:=0;
+            ErrWrite\W,"NIE ROZPOZNANO ROBOTA!","";
+        ENDTEST
+    ENDPROC
+
+    !procedura do listowania wszystkich procedur jakie znajduja sie na robocie
+    PROC listAllProcedures()
+        VAR string taskName{20};
+        VAR string procedures{procedureMaxNum};
+        VAR num taskCount:=0;
+        VAR string programFound;
+
+        !badamy ile jest watkow i pobieramy ich nazwy
+        checkTasks taskCount,taskName;
+        !nastepnie w katalogu HOME szukamy katalogow o tej samej nazwie co dany watek
+        FOR i FROM 1 TO taskCount DO
+            programFound:=searchDir("HOME:",taskName{i});
+            IF programFound<>"" THEN
+                !znaleziono program w danej sciezce (programFound)
+                !w nim listujemy liczbe plikow a nastepnie skanujemy kazdy z nich
+                findProceduresInDir programFound,procedures;
+                FOR j FROM 1 TO procedureMaxNum DO
+                    tasksProcedures{i,j}:=procedures{j};
+                    procedures{j}:="";
+                ENDFOR
+            ELSE
+                ErrWrite\W,"BRAK PROGRAMU W WATKU "+taskName{i}+"!","Prawdopodobnie na robocie nie ma programu dla watku nr "+NumToStr(i,0);
+            ENDIF
+        ENDFOR
+    ENDPROC
+
+    !PROCEDURA która liczy ile jest watkow na robocie i wrzuca ich nazwy do tablicy 
+    PROC checkTasks(VAR num checkTaskNo,VAR string checkTaskNames{*})
+        VAR num listIndex;
+
+        WHILE listIndex<>END_OF_LIST DO
+            ReadCfgData "/SYS/CAB_TASKS/Type/NORMAL","Name",checkTaskNames{listIndex+1}\ListNo:=listIndex;
+            IF listIndex<>-1 checkTaskNo:=listIndex+1;
+        ENDWHILE
+    ENDPROC
+
+    !FUNKCJA która poczawszy od katalogu startDirectory szuka sciezki searchDirectory
+    FUNC string searchDir(string startDirectory,string searchDirectory)
+        VAR dir directory;
+        VAR string fileName;
+        VAR string tempName;
+
+        foundDir:=FALSE;
+        IF IsFile(startDirectory\Directory) THEN
+            !otwieram katalog glowny
+            OpenDir directory,startDirectory;
+            !sprawdzam wszystkie pliki w tym katalogu
+            WHILE ReadDir(directory,tempName) AND foundDir=FALSE DO
+                IF tempName<>".." AND tempName<>"." THEN
+                    !jezeli jest cos innego niz ".." lub "." to jest to plik
+                    IF tempName=searchDirectory THEN
+                        !jezeli jest to to czego szukamy to wracamy
+                        CloseDir directory;
+                        fileName:=startDirectory+"/"+tempName;
+                        foundDir:=TRUE;
+                        RETURN fileName;
+                    ELSE
+                        !jezeli nie jest to czego szukamy to wchodzimy glebiej i tam szukamy
+                        fileName:=searchDir(startDirectory+"/"+tempName,searchDirectory);
+                    ENDIF
+                ENDIF
+            ENDWHILE
+            CloseDir directory;
+        ENDIF
+        RETURN fileName;
+    ENDFUNC
+
+    !PROCEDURA ktora w podanej sciezce szuka wszystkich procedur
+    PROC findProceduresInDir(string checkDirectory,INOUT string procedures{*})
+        VAR dir directory;
+        VAR string fileName;
+
+        IF IsFile(checkDirectory\Directory) THEN
+            OpenDir directory,checkDirectory;
+            WHILE ReadDir(directory,fileName) DO
+                IF fileName<>".." AND fileName<>"." THEN
+                    findProceduresInFile checkDirectory+"/"+fileName,procedures;
+                ENDIF
+            ENDWHILE
+        ENDIF
+    ENDPROC
+
+    !PROCEDURA ktora w podanym pliku szuka wszystkich procedur
+    PROC findProceduresInFile(string fileName,INOUT string procedures{*})
+        VAR iodev plikWPamieci;
+        VAR string readText;
+        VAR num stringEndProcFoundOnPos;
+        VAR num stringProcFoundOnPos;
+        VAR num stringNameFoundOnPos;
+        VAR string procName;
+        VAR num stringLenght;
+        VAR num currentCapacity;
+
+        !sprawdzamy obecna zajetosc tablicy procedur
+        FOR i FROM 1 TO Dim(procedures,1) DO
+            IF procedures{i}<>"" Incr currentCapacity;
+        ENDFOR
+        !otwieramy dany plik
+        Open ""\File:=fileName,plikWPamieci\Read;
+        WHILE readText<>EOF DO
+            readText:=ReadStr(plikWPamieci);
+            stringLenght:=StrLen(readText);
+            !sprawdzamy czy w pliku nie ma slowa ENDPROC
+            stringEndProcFoundOnPos:=StrMatch(readText,1,"ENDPROC");
+            IF stringEndProcFoundOnPos=stringLenght+1 THEN
+                !jezeli NIE MA slowa ENDPROC
+                stringProcFoundOnPos:=StrMatch(readText,1,"PROC");
+                IF stringProcFoundOnPos<>stringLenght+1 THEN
+                    !jezeli znaleziono slowo PROC to po spacji powinna byc nazwa 
+                    stringNameFoundOnPos:=StrFind(readText,stringProcFoundOnPos+5,"(");
+                    procName:=StrPart(readText,stringProcFoundOnPos+5,stringNameFoundOnPos-(stringProcFoundOnPos+5));
+                    procedures{currentCapacity+1}:=procName;
+                    Incr currentCapacity;
+                ENDIF
+            ENDIF
+        ENDWHILE
+        Close plikWPamieci;
+    ENDPROC
+
+    FUNC bool diToBool(VAR signaldi input)
+        VAR bool result;
+
+        IF input=1 THEN
+            result:=TRUE;
+        ELSE
+            result:=FALSE;
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+
+    !Procedura do przeorientowywania TCP robota tak aby dana os byla skierowana rownolegle do robota
+    ! arg: axis - ktora os ma byc rownoglegla do robota (brak arg oznacza najblizsza os)
+    ! arg: tool - ktora definicje narzedzia obracamy
+    PROC toolAxisToRobot(\num axis,PERS tooldata tool)
+        !po pierwsze ustawiamy sie pionowo (najblizsza osia)
+        alignPos axisZ,tool,wobj0;
+        !nastepnie dokrecamy os do robota
+        IF Present(axis) THEN
+            !jezeli zdecydowano ktora os dokrecamy to robimy to na sztywno
+            rotateAxisToWobjZ\whichAxis:=axis,tool,wobj0;
+        ELSE
+            !jezeli nie zdecydowano ktorej osi to dokrecamy najblizsza
+            rotateAxisToWobjZ tool,wobj0;
+        ENDIF
+    ENDPROC
+
+    !Procedura obracajaca dany uklad wspolrzednych tak by os byla skierowana do osi Z robota
+    ! arg: whichAxis - ktora os ma byc rownoglegla do robota (brak arg oznacza najblizsza os)
+    ! arg: tool - ktora definicje narzedzia obracamy
+    PROC rotateAxisToWobjZ(\num whichAxis,PERS tooldata tool,PERS wobjdata wobj)
+        VAR robtarget currentPos;
+        VAR num whichAxisToBase;
+        VAR num backupZ;
+        VAR pos vecReference;
+
+        !pobieramy obecna pozycje robota w globalu
+        currentPos:=CRobT(\Tool:=tool\WObj:=wobj);
+        !wyliczamy wektor od obecnego TCP do srodka podstawy robota
+        backupZ:=currentPos.trans.z;
+        currentPos.trans.z:=wobj.uframe.trans.z;
+        vecReference:=calcVector(currentPos.trans,wobj.uframe.trans);
+        !poziomujemy wektor
+        currentPos.trans.z:=backupZ;
+        !sprawdzamy jaka os dokrecamy
+        IF Present(whichAxis) THEN
+            !pobieramy os ktora mamy dokrecic do bazy
+            whichAxisToBase:=whichAxis;
+        ELSE
+            !pobiaramy os najblizsza referencji
+            whichAxisToBase:=closestAxis(currentPos,vecReference);
+        ENDIF
+        !zadana os dokrecamy do referencji
+        calcAlignPose currentPos,whichAxisToBase,vecReference;
+        !jedziemy do dokreconej pozycji
+        MoveL currentPos,mediumSpeed,fine,tool\WObj:=wobj;
+    ENDPROC
+
+    !Procedura dostosowujaca pozycje TCP tak by najblizsza jego os byla rownolegla do zadanej
+    ! arg: toWhichAxis - do ktorej osi chcemy dokrecac (z automatu zostanie wybrana najblizsza os
+    ! arg: tool - jakie TCP narzedzia mamy wyrownac
+    ! arg: wobj - do jakiego workobjectu mamy wyrownac pozycje
+    PROC alignPos(num toWhichAxis,PERS tooldata tool,PERS wobjdata wobj)
+        VAR num closeAxisNo;
+        VAR pos referenceVec;
+        VAR robtarget currentPos;
+
+        !sprawdzamy czy podano dobry numer osi
+        IF toWhichAxis>=1 AND toWhichAxis<=3 THEN
+            !pobieramy obecna pozycje
+            currentPos:=CRobT(\Tool:=tool\WObj:=wobj);
+            !sprawdzamy do ktorej osi mamy sie dokrecic
+            IF toWhichAxis=axisX THEN
+                referenceVec:=[1,0,0];
+            ELSEIF toWhichAxis=axisY THEN
+                referenceVec:=[0,1,0];
+            ELSEIF toWhichAxis=axisZ THEN
+                referenceVec:=[0,0,1];
+            ENDIF
+            !sprawdzamy ktora os jest najblizej referencji
+            closeAxisNo:=closestAxisOrtho(currentPos,referenceVec);
+            !najblizsza os dokrecamy do referencji
+            calcAlignPose currentPos,closeAxisNo,referenceVec\checkIt;
+            !jedziemy do dokreconej pozycji
+            ConfL\Off;
+            MoveL currentPos,mediumSpeed,fine,tool\WObj:=wobj;
+        ELSE
+            !ErrWrite "Cant align pos","Wrong axis inputted ["+NumToStr(toWhichAxis,0)\RL2:="Procedure: alignPos";
+            ErrWriteID 25;
+        ENDIF
+    ENDPROC
+
+    !Funkcja do okreslania ktora os (X, Y lub Z) danej pozycji jest najblizej wektora (MUSI POKRYWAC SIE Z JEDNA OSIA UKLADU!!!)
+    ! ret: num - numer osi ktora jest najblizsza odniesieniu (1 = X, 2 = Y, 3 = Z)
+    ! arg: inspectedPose - pozycja ktorej osie badamy
+    ! arg: reference - wektor bedacy odniesieniem do ktorego szukamy najblizszej osi (podajemy w strone dodatnia)
+    FUNC num closestAxisOrtho(robtarget inspectedPose,pos reference)
+        VAR num result;
+        VAR pos vector{3};
+        VAR pos vectorMain{3};
+        VAR num vectorLen{3};
+        VAR orient tempOrient;
+
+        !w zaleznosci od referencji jedziemy dalej z procesem
+        IF checkReference(reference) THEN
+            !wyznaczamy wektor zerowy (glowny)
+            vectorMain:=[[1,0,0],[0,1,0],[0,0,1]];
+            !wyznaczamy wektor na osi X
+            tempOrient:=oriFromPos(vectorMain{axisX});
+            tempOrient:=orientDivide(orientMult(inspectedPose.rot,tempOrient),inspectedPose.rot);
+            vector{axisX}:=[tempOrient.q2,tempOrient.q3,tempOrient.q4];
+            !wyznaczamy wektor na osi Y
+            tempOrient:=oriFromPos(vectorMain{axisY});
+            tempOrient:=orientDivide(orientMult(inspectedPose.rot,tempOrient),inspectedPose.rot);
+            vector{axisY}:=[tempOrient.q2,tempOrient.q3,tempOrient.q4];
+            !wyznaczamy wektor na osi Z
+            tempOrient:=oriFromPos(vectorMain{axisZ});
+            tempOrient:=orientDivide(orientMult(inspectedPose.rot,tempOrient),inspectedPose.rot);
+            vector{axisZ}:=[tempOrient.q2,tempOrient.q3,tempOrient.q4];
+            !sprawdzamy ktora os jest najblizej referencji
+            IF reference=[1,0,0] THEN
+                vectorLen{axisX}:=Abs(vector{axisX}.x);
+                vectorLen{axisY}:=Abs(vector{axisY}.x);
+                vectorLen{axisZ}:=Abs(vector{axisZ}.x);
+            ELSEIF reference=[0,1,0] THEN
+                vectorLen{axisX}:=Abs(vector{axisX}.y);
+                vectorLen{axisY}:=Abs(vector{axisY}.y);
+                vectorLen{axisZ}:=Abs(vector{axisZ}.y);
+            ELSEIF reference=[0,0,1] THEN
+                vectorLen{axisX}:=Abs(vector{axisX}.z);
+                vectorLen{axisY}:=Abs(vector{axisY}.z);
+                vectorLen{axisZ}:=Abs(vector{axisZ}.z);
+            ENDIF
+            !sprawdzamy ktory element jest najmniejszy
+            result:=searchInTable(vectorLen\biggest\elementNo);
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !Funkcja do okreslania ktora os (X, Y lub Z) danej pozycji jest najblizej wektora
+    ! ret: num - numer osi ktora jest najblizsza odniesieniu (1 = X, 2 = Y, 3 = Z)
+    ! arg: inspectedPose - pozycja ktorej osie badamy
+    ! arg: reference - wektor bedacy odniesieniem do ktorego szukamy najblizszej osi (podajemy w strone dodatnia)
+    FUNC num closestAxis(robtarget inspectedPose,pos reference)
+        VAR num result;
+        VAR pos vector{3};
+        VAR num angles{3};
+
+        !budujemy wektory poszczegolnych osi
+        vector{axisX}:=calcVector(inspectedPose.trans,robtToPos(RelTool(inspectedPose,100,0,0)));
+        vector{axisY}:=calcVector(inspectedPose.trans,robtToPos(RelTool(inspectedPose,0,100,0)));
+        vector{axisZ}:=calcVector(inspectedPose.trans,robtToPos(RelTool(inspectedPose,0,0,100)));
+        !sprawdzamy katy miedzy wektorami a referencja
+        angles{axisX}:=angleBetweenVectors(vector{axisX},reference);
+        IF angles{axisX}>90 angles{axisX}:=180-angles{axisX};
+        angles{axisY}:=angleBetweenVectors(vector{axisY},reference);
+        IF angles{axisY}>90 angles{axisY}:=180-angles{axisY};
+        angles{axisZ}:=angleBetweenVectors(vector{axisZ},reference);
+        IF angles{axisZ}>90 angles{axisZ}:=180-angles{axisZ};
+        !wybieramy ta os ktorej kat do referencji jest najmniejszy
+        result:=searchInTable(angles\smallest\elementNo);
+
+        RETURN result;
+    ENDFUNC
+
+!    PROC goCompactPos(PERS tooldata tool,PERS wobjdata wobj)
+!        VAR robtarget currRobT;
+!        VAR pos vecToBase;
+!        VAR num distanceToAxis;
+!        VAR num minDistanceNeeded;
+!        VAR num bestAxis;
+!        VAR num backupZ;
+!
+!        !w zaleznosci od toola inne sa odleglosci "cofniecia" robota
+!        IF currentTool=gripperTool THEN
+!            minDistanceNeeded:=1700;
+!        ELSEIF currentTool=forkTool THEN
+!            minDistanceNeeded:=2200;
+!        ELSEIF currentTool=baffleTool THEN
+!            minDistanceNeeded:=1400;
+!        ELSEIF currentTool=changerTool THEN
+!            minDistanceNeeded:=1400;
+!        ENDIF
+!        !pobieramy obecna pozycje
+!        WaitTime\InPos,0;
+!        currRobT:=CRobT(\Tool:=tool\WObj:=wobj);
+!        backupZ:=currRobT.trans.z;
+!        !wyznaczamy wektor od obecnej pozycji do bazy
+!        currRobT.trans.z:=wobj.uframe.trans.z;
+!        vecToBase:=calcVector(currRobT.trans,wobj.uframe.trans);
+!        !znajdujemy odeglosc od obecnej pozycji wyrazonej w tool0do bazy
+!        distanceToAxis:=Distance(currRobT.trans,wobj.uframe.trans);
+!        currRobT.trans.z:=backupZ;
+!        IF distanceToAxis>minDistanceNeeded THEN
+!            distanceToAxis:=distanceToAxis-minDistanceNeeded;
+!            !sprawdzamy jaka os TCP jest najblizej skierowana do bazy robota
+!            bestAxis:=closestAxis(currRobT,vecToBase);
+!            !przesuwamy sie robotem do bazy o zadana odleglosc
+!            IF bestAxis=axisX THEN
+!                currRobT:=RelTool(currRobT,-distanceToAxis,0,0);
+!                currRobT.trans.z:=1600;
+!            ELSEIF bestAxis=axisY THEN
+!                currRobT:=RelTool(currRobT,0,distanceToAxis,0);
+!                currRobT.trans.z:=1600;
+!            ELSEIF bestAxis=axisZ THEN
+!                currRobT:=RelTool(currRobT,0,0,-distanceToAxis);
+!                currRobT.trans.z:=1600;
+!            ENDIF
+!            Confl\Off;
+!            MoveL currRobT,v500,z0,tool\WObj:=wobj;
+!        ENDIF
+!    ENDPROC
+
+    !funkcja do sprawdzania wektora referencyjnego (wektor musi pokrywac sie z jedna osi wobj)
+    ! ret: bool = podany wektor referencyjny jest poprawny
+    ! arg: reference - wektor referencyjny ktory sprawdzamy
+    FUNC bool checkReference(pos reference)
+        VAR bool result;
+        VAR num checkTable{3}:=[0,0,0];
+
+        !sprawdzamy gdzie mamy ustawiona referencje
+        IF reference.x=1 checkTable{axisX}:=1;
+        IF reference.y=1 checkTable{axisY}:=1;
+        IF reference.z=1 checkTable{axisZ}:=1;
+        !sprawdzamy ile mamy jedynek
+        IF ((checkTable{axisX}+checkTable{axisY}+checkTable{axisZ})=1) THEN
+            result:=TRUE;
+        ELSE
+            result:=FALSE;
+            !ErrWrite "Wrong reference","Cant interpret reference: "+valToStr(reference)\RL2:="Procedure: checkReference";
+            ErrWriteID 25;
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !wrapper do wyliczajania pozycji ktorej dana os jest rownolegla do wektora (referencji)
+    ! arg: position - pozycja ktora chcemy dopasowac
+    ! arg: axisNo - numer osi (1 = X, 2 = Y, 3 = Z) ktora chcemy dokrecic do wektora
+    ! arg: reference - wektor do ktorego dokrecamy dana os
+    ! arg: checkIt - czy sprawdzic wektor referencyjny (wymaganie by pokrywal sie z jedna z osi ukladu)
+    PROC calcAlignPose(INOUT robtarget position,num axisNo,pos reference\switch checkIt)
+        !sprawdzamy jaka os chcemy dokrecic do danego wektora
+        TEST axisNo
+        CASE axisX:
+            !os X - weryfikujemy czy mamy sprawdzic wektor referencyjny (ma byc ortogonalny) czy nie
+            IF Present(checkIt) THEN
+                position:=screwAxis(\X,position,reference\checkIt);
+            ELSE
+                position:=screwAxis(\X,position,reference);
+            ENDIF
+        CASE axisY:
+            !os Y - weryfikujemy czy mamy sprawdzic wektor referencyjny (ma byc ortogonalny) czy nie
+            IF Present(checkIt) THEN
+                position:=screwAxis(\Y,position,reference\checkIt);
+            ELSE
+                position:=screwAxis(\Y,position,reference);
+            ENDIF
+        CASE axisZ:
+            !os Z - weryfikujemy czy mamy sprawdzic wektor referencyjny (ma byc ortogonalny) czy nie
+            IF Present(checkIt) THEN
+                position:=screwAxis(\Z,position,reference\checkIt);
+            ELSE
+                position:=screwAxis(\Z,position,reference);
+            ENDIF
+        DEFAULT:
+        ENDTEST
+    ENDPROC
+
+    !Funkcja wyliczajaca pozycje dokrecona do zadanej osi
+    ! ret: robtarget = pozycja ktorej zadana os jest dokrecona do referencji
+    ! arg: inputPosition - pozycja ktora chcemy dokrecic
+    ! arg: reference - wektor do ktorego chcemy dokrecic dana pozycje
+    ! arg: X - dokrecamy os X do danego wektora
+    ! arg: Y - dokrecamy os Y do danego wektora
+    ! arg: Z - dokrecamy os Z do danego wektora
+    FUNC robtarget screwAxis(\switch X|switch Y|switch Z,robtarget inputPosition,pos reference\switch checkIt)
+        VAR robtarget result;
+        VAR bool continueProcess;
+        VAR num angle;
+        VAR pos vector;
+        VAR pos baseVector;
+        VAR pos tempVector;
+        VAR orient thisOrient;
+        VAR orient tempOrient;
+
+        !sprawdzamy czy mozna kontynuowac proces (ewentualne sprawdzenie referencji)
+        IF Present(checkIt) THEN
+            continueProcess:=checkReference(reference);
+        ELSE
+            continueProcess:=TRUE;
+        ENDIF
+        !w zaleznosci od referencji jedziemy dalej z procesem
+        IF continueProcess THEN
+            result:=inputPosition;
+            thisOrient:=inputPosition.rot;
+            !sprawdzamy jaka os mamy dokrecic
+            IF Present(X) THEN
+                baseVector:=[1,0,0];
+            ELSEIF Present(Y) THEN
+                baseVector:=[0,1,0];
+            ELSEIF Present(Z) THEN
+                baseVector:=[0,0,1];
+            ELSE
+                WHILE TRUE DO
+                    !ErrWrite "Cant screw axis!","Dont know which axis to screw!"\RL2:="Procedure: screwAxis";
+                    ErrWriteID 25;
+                    Stop;
+                ENDWHILE
+            ENDIF
+            !wyliczamy wektor na podstawie orientacji
+            tempOrient:=oriFromPos(baseVector);
+            tempOrient:=orientDivide(orientMult(thisOrient,tempOrient),thisOrient);
+            vector:=[tempOrient.q2,tempOrient.q3,tempOrient.q4];
+            !budujemy orientacje wokol ktorej mamy sie obrocic
+            tempVector:=crossProd(reference,vector);
+            !sprawdzamy o jaki kat nalezy sie obrocic wokol danej osi
+            tempVector:=normVector(tempVector);
+            angle:=angleBetweenVectors(vector,reference\angleParts:=1)-angleBetweenVectors(vector,reference);
+            tempOrient:=[Cos(angle/2),Sin(angle/2)*tempVector.x,Sin(angle/2)*tempVector.y,Sin(angle/2)*tempVector.z];
+            result.rot:=orientMult(tempOrient,thisOrient);
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !Funkcja wyznaczajaca iloczyn skalarny dwoch wektorow
+    ! ret: pos = iloczyn skalarny wektorow
+    ! arg: vec1 - wektor pierwszy
+    ! arg: vec2 - wektor drugi
+    FUNC pos crossProd(pos vec1,pos vec2)
+        VAR pos result;
+
+        result:=[vec1.y*vec2.z-vec1.z*vec2.y,vec1.z*vec2.x-vec1.x*vec2.z,vec1.x*vec2.y-vec1.y*vec2.x];
+
+        RETURN result;
+    ENDFUNC
+
+    !Funkcja wyznaczajaca kat pomiedzy dwoma wektorami
+    ! ret: num = kat miedzy wektorami
+    ! arg: vec - wektor ktorego kat chcemy obliczyc
+    ! arg: reference - wektor wzgledem ktorego obliczamy kat
+    FUNC num angleBetweenVectors(pos vec,pos reference\num angleParts)
+        VAR num result;
+        VAR num angle;
+        VAR num graduation;
+        VAR num fullAngleNo;
+        VAR num fullAngleRest;
+
+        angle:=ACos(normACos(DotProd(vec,reference)/(VectMagn(vec)*VectMagn(reference))));
+        IF Present(angleParts) THEN
+            IF angle<>0 THEN
+                IF angleParts=0 THEN
+                    graduation:=360;
+                ELSE
+                    graduation:=180/angleParts;
+                ENDIF
+                fullAngleNo:=Trunc(angle/graduation\Dec:=0)*graduation;
+                fullAngleRest:=angle-fullAngleNo;
+                IF fullAngleRest<=graduation/2 THEN
+                    result:=fullAngleNo;
+                ELSE
+                    result:=fullAngleNo+graduation;
+                ENDIF
+            ELSE
+                result:=0;
+            ENDIF
+        ELSE
+            result:=angle;
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+    
+    ! Funkcja zwraca kat osi z danej pozycji do podanej osi work objectu
+    ! @param target: pozycja, ktorej kat liczymy
+    ! @param axisNo: numer osi (1 = X, 2 = Y, 3 = Z) wobj, do ktorego obliczamy kat
+    ! @param inv: czy obliczyc kat do osi o przeciwnym zwrocie
+    ! @param toolAxis: numer osi toola (1 = X, 2 = Y, 3 = Z), która bierzemy pod uwage; def = Z
+    ! @return: zwracany kat
+    FUNC num orientAngleToAxis (robtarget target, num axisNo \switch inv \num toolAxis)
+        VAR robtarget tmp;
+        VAR pos vecTarget;
+        VAR pos vecReference;
+        VAR num result := 9e9;
+        
+        ! Na poczatku wyliczenie wektora kierunku orientacji punktu
+        IF Present(toolAxis) AND toolAxis = axisX THEN
+            tmp := RelTool(target, 1, 0, 0);
+        ELSEIF Present(toolAxis) AND toolAxis = axisY THEN
+            tmp := RelTool(target, 0, 1, 0);
+        ELSE
+            tmp := RelTool(target, 0, 0, 1);
+        ENDIF
+        vecTarget := tmp.trans - target.trans;
+        
+        ! Wektor referencyjny
+        IF axisNo = axisX THEN
+            vecReference:=[1,0,0];
+        ELSEIF axisNo = axisY THEN
+            vecReference:=[0,1,0];
+        ELSEIF axisNo = axisZ THEN
+            vecReference:=[0,0,1];
+        ELSE
+            WHILE TRUE DO
+                !ErrWrite "INTERNAL ERROR", "orientAngleToAxis::ERROR! Argument 'axisNo' has got incorrect value!";
+                ErrWriteID 25;
+                Stop;
+            ENDWHILE
+            RETURN result;
+        ENDIF
+        
+        ! Ewentualne odwrocenie wektora referencyjnego
+        IF present(inv) THEN
+            vecReference := vectorInverse(vecReference);
+        ENDIF
+        
+        ! Obliczenie kata, logowanie i zwrocenie wyniku
+        result := angleBetweenVectors(vecTarget, vecReference);
+        ErrWrite \W, "angle = " + ValToStr(result), "";
+        
+        RETURN result;
+    ENDFUNC
+
+    FUNC num normACos(num value)
+        VAR num result;
+
+        result:=value;
+        IF result>1 result:=1;
+        IF result<-1 result:=-1;
+
+        RETURN result;
+    ENDFUNC
+
+    !Funkcja do wymnazania dwoch orientacji 
+    ! ret: orient = wynik mnozenia orientow
+    ! arg: ori1 - pierwsza orientacja do mnozenia
+    ! arg: ori2 - druga orientacja do mnozenia
+    FUNC orient orientMult(orient ori1,orient ori2)
+        VAR orient result;
+
+        result.q1:=ori1.q1*ori2.q1-ori1.q2*ori2.q2-ori1.q3*ori2.q3-ori1.q4*ori2.q4;
+        result.q2:=ori1.q3*ori2.q4-ori1.q4*ori2.q3+ori1.q1*ori2.q2+ori1.q2*ori2.q1;
+        result.q3:=ori1.q4*ori2.q2-ori1.q2*ori2.q4+ori1.q1*ori2.q3+ori1.q3*ori2.q1;
+        result.q4:=ori1.q2*ori2.q3-ori1.q3*ori2.q2+ori1.q1*ori2.q4+ori1.q4*ori2.q1;
+
+        RETURN result;
+    ENDFUNC
+
+    !Funkcja do dzielenia dwoch orientacji 
+    ! ret: orient = wynik dzielenia orientow
+    ! arg: ori1 - pierwsza orientacja do dzielenia
+    ! arg: ori2 - druga orientacja do dzielenia    
+    FUNC orient orientDivide(orient ori1,orient ori2)
+        VAR orient result;
+        VAR orient tempOri;
+
+        tempOri:=orientInverse(ori2);
+        result:=orientMult(ori1,tempOri);
+        result:=NOrient(result);
+
+        RETURN result;
+    ENDFUNC
+
+    !Funkcja do wyliczania odwrotnosci danej orientacji
+    ! ret: orient = orientacja odwrocona do zadanej
+    ! arg: ori - orientacja ktora chcemy odwrocic
+    FUNC orient orientInverse(orient ori)
+        VAR orient result;
+
+        result:=[ori.q1,-ori.q2,-ori.q3,-ori.q4];
+        result:=NOrient(result);
+
+        RETURN result;
+    ENDFUNC
+
+    !Funkcja do wyznaczania orientacji na podstawie danego wektora
+    ! ret: orient - orientacja wektora w przestrzeni 3D wyrazona w kwaternionach
+    ! arg: position - wektor w przestrzeni 3D
+    FUNC orient oriFromPos(pos position)
+        VAR orient result;
+
+        result:=[0,position.x,position.y,position.z];
+        result:=NOrient(result);
+
+        RETURN result;
+    ENDFUNC
+
+    !Funkcja do odwracania (zamiany zwrotu) danego wektora
+    ! ret: pos = wektor odwrocony
+    ! arg: vector - wektor zadany
+    FUNC pos vectorInverse(pos vector)
+        VAR pos result;
+
+        result.x:=-vector.x;
+        result.y:=-vector.y;
+        result.z:=-vector.z;
+
+        RETURN result;
+    ENDFUNC
+
+    !Funkcja znajdujaca odpowiednia liczbe/nr elementu w tablicy
+    ! arg: table - tablica w ktorej szukamy odpowiedniego elementu
+    ! arg: biggest - najwieksza wartosc / element o najwiekszej wartosci
+    ! arg: smallest - najmniejsza wartosc / element o najmniejszej wartosci
+    ! arg: value - czy chcemy zwrocic wartosc odpowiedniego elementu
+    ! arg: elementNo - czy chcemy zwrocic numer odpowiedniego elementu
+    FUNC num searchInTable(num table{*},\switch biggest|switch smallest,\switch value|switch elementNo)
+        VAR num result:=0;
+        VAR num lowElementNum:=0;
+        VAR num lowElementVal:=9E+09;
+        VAR num highElementNum:=0;
+        VAR num highElementVal:=-9E+09;
+        VAR num tableSize;
+
+        tableSize:=Dim(table,1);
+        FOR i FROM 1 TO tableSize DO
+            !szukanie najmniejszej wartosci
+            IF lowElementVal>table{i} THEN
+                lowElementVal:=table{i};
+                lowElementNum:=i;
+            ENDIF
+            !szukanie najwiekszej wartosci
+            IF highElementVal<table{i} THEN
+                highElementVal:=table{i};
+                highElementNum:=i;
+            ENDIF
+        ENDFOR
+        !sprawdzamy co mamy zwrocic
+        IF Present(value) THEN
+            IF Present(biggest) THEN
+                result:=highElementVal;
+            ELSEIF Present(smallest) THEN
+                result:=lowElementVal;
+            ELSE
+                result:=-1;
+            ENDIF
+        ELSEIF Present(elementNo) THEN
+            IF Present(biggest) THEN
+                result:=highElementNum;
+            ELSEIF Present(smallest) THEN
+                result:=lowElementNum;
+            ELSE
+                result:=-1;
+            ENDIF
+        ELSE
+            result:=-1;
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !funkcja zamnieniajaca robtarget na pos
+    ! ret: pos = wynik konwersji
+    ! arg: robt - robtarget z ktorego chcemy pobrac pos    
+    FUNC pos robtToPos(robtarget robt)
+        VAR pos result;
+
+        result.x:=robt.trans.x;
+        result.y:=robt.trans.y;
+        result.z:=robt.trans.z;
+
+        RETURN result;
+    ENDFUNC
+    
+    ! Procedura czeka az uzytkownik przelaczy robota w tryb manual i wystartuje robota
+    PROC forceManualMode() 
+        WHILE (OpMode()=OP_AUTO) DO
+            !ErrWrite "Zly tryb pracy","Nie moge wystartowac w trybie AUTO." \RL2:="Zmien tryb pracy na MANUAL i wcisnij START!";
+            ErrWriteID 67;
+            STOP;
+        ENDWHILE
+    ENDPROC
+ENDMODULE

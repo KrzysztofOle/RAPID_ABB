@@ -1,74 +1,7 @@
 MODULE GalantSpawRLibrary
-    !funkcja sprawdzajaca odleglosc miedzy obecnym detalem a najblizszymy sasiadami
-    ! ret: bool = czy sasiedzi sa dostatecznie daleko (TRUE) czy minimum jeden z nich jest za blisko (FALSE)
-    ! arg: packetNo - jaki typ pakietu analizujemy
-    ! arg: currDetail - dla jakiego detalu szukamy najblizszych sasiadow
-    ! arg: closeElement - znaleziony typ galanterii BLISKIEGO sasiada
-    ! arg: angleDiff - znaleziona roznica pozycji katowej miedzy obecnym detalem a BLISKIM sasiadem
-    ! arg: posDiff - znaleziona roznica pozycji XYZ miedzy obecnym detalem a BLISKIM sasiadem
-    FUNC bool checkSafeDistances(num packetNo,num currDetail,INOUT num closeElement{*},INOUT num angleDiff{*},INOUT pos posDiff{*})
-        VAR bool result:=TRUE;
-        VAR num minAngle:=30;
-        VAR num minDist:=60;
-        VAR num closeElementsNo:=0;
-        VAR num packetAngles{maxElementNo};
-        VAR location currDetailInPacket;
-        VAR location closeDetailInPacket;
-
-        !pobieramy informacje o katach detali wzgledem obecnego
-        IF getPacketAngles(packetNo,currDetail,packetAngles)>0 THEN
-            !pobieramy pozycje obecnego detalu
-            currDetailInPacket:=getDetailLocation(packetNo,currDetail);
-            FOR i FROM 1 TO maxElementNo DO
-                !dla kazdego (oprocz obecnego) detalu sprawdzamy czy kat jest mniejszy od zalozonego
-                IF i<>currDetail AND Abs(packetAngles{i})<minAngle THEN
-                    !sprawdzamy jeszcze czy jest na tej samej wysokosci pakietu
-                    closeDetailInPacket:=getDetailLocation(packetNo,i);
-                    IF Distance(currDetailInPacket.elementWObj.trans,closeDetailInPacket.elementWObj.trans)<minDist THEN
-                        !detal jest za blisko - sprawdzamy czy juz jest zamontowany (sczepiony)
-                        IF detailStatusHeft{i}=TRUE THEN
-                            !detal juz jest na pakiecie wrzucamy odpowiedzi do tablicy
-                            Incr closeElementsNo;
-                            closeElement{closeElementsNo}:=i;
-                            angleDiff{closeElementsNo}:=packetAngles{i};
-                            posDiff{closeElementsNo}:=currDetailInPacket.elementWObj.trans-closeDetailInPacket.elementWObj.trans;
-                            !ustawiamy flage wyjsciowa
-                            result:=FALSE;
-                        ENDIF
-                    ENDIF
-                ENDIF
-            ENDFOR
-        ENDIF
-
-        RETURN result;
-    ENDFUNC
-
-    !funkcja sprawdzajaca czy oby dwa wobj sa takie same 
-    FUNC bool compareWobjs(wobjdata baseWobj,wobjdata currentWObj)
-        VAR bool result:=FALSE;
-        VAR wobjdata testedWobjs{2};
-        VAR bool transOK:=FALSE;
-        VAR bool rotOK:=FALSE;
-
-        testedWobjs:=[baseWobj,currentWObj];
-        !zaokraglamy kazda wartosc wobj do 3ch miejsc po przecinku
-        FOR i FROM 1 TO Dim(testedWobjs,1) DO
-            testedWobjs{i}.uframe.trans.x:=Round(testedWobjs{i}.uframe.trans.x\Dec:=3);
-            testedWobjs{i}.uframe.trans.y:=Round(testedWobjs{i}.uframe.trans.y\Dec:=3);
-            testedWobjs{i}.uframe.trans.z:=Round(testedWobjs{i}.uframe.trans.z\Dec:=3);
-            testedWobjs{i}.uframe.rot.q1:=Round(testedWobjs{i}.uframe.rot.q1\Dec:=3);
-            testedWobjs{i}.uframe.rot.q2:=Round(testedWobjs{i}.uframe.rot.q2\Dec:=3);
-            testedWobjs{i}.uframe.rot.q3:=Round(testedWobjs{i}.uframe.rot.q3\Dec:=3);
-            testedWobjs{i}.uframe.rot.q4:=Round(testedWobjs{i}.uframe.rot.q4\Dec:=3);
-        ENDFOR
-        !porownujemy ze soba trans i rot
-        IF testedWobjs{1}.uframe.trans=testedWobjs{2}.uframe.trans transOK:=TRUE;
-        IF testedWobjs{1}.uframe.rot=testedWobjs{2}.uframe.rot rotOK:=TRUE;
-
-        result:=transOK AND rotOK;
-
-        RETURN result;
-    ENDFUNC
+    !===========================================
+    !======= OBSLUGA PAKIETOW I DETALI =========
+    !===========================================
 
     !funkcja liczaca wszystkie elementy danego pakietu
     ! ret: num = liczba zliczonych elementow galanterii 
@@ -215,40 +148,222 @@ MODULE GalantSpawRLibrary
             ErrWrite "countElements::ERROR","Za mala tablica do przechowania liczby elementow!";
             result:=-1;
         ENDIF
-
         !uzupelniamy informacje o lacznej liczbie detali do przymocowania
         GUI_statsCalcElementsToDo elemTableCount;
 
         RETURN result;
     ENDFUNC
 
-    !wrapper do powyzszej funkcji - oprocz liczby elementow zwraca nam dokladna liczbe kroccow, wieszakow, itd
-    ! ret: bool = czy udalo sie poprawnie pobrac wszystkie dane pakietu
-    ! arg: packet - typ pakietu ktory sprawdzamy
-    ! arg: elemTableCount - tabica zawierajaca obecnosc lub nie danych elementow
-    ! arg: nozzles - liczba kroccow w danym pakiecie
-    ! arg: sensors - liczba czujek w danym pakiecie
-    ! arg: lidBrackets - liczba uchwytow miski w danym pakiecie
-    ! arg: stands - liczba wieszakow w danym pakiecie
-    ! arg: holders - liczba uchwytow rur w danym pakiecie
-    FUNC bool getPacketData(packetType packet,INOUT num elemTableCount{*},INOUT num nozzles,INOUT num sensors,INOUT num lidBrackets,INOUT num stands,INOUT num holders)
-        VAR bool result:=FALSE;
-        VAR num elementsNo;
+    !funkcja pobierajaca pozycje detalu
+    ! ret: location = pozycja detalu
+    ! num: packetNo - z jakiego typu pakietu nalezy odczytac pozycje
+    ! num: detailType - jakiego detalu odczytac pozycje
+    FUNC location getDetailLocation(num packetNo,num detailType)
+        VAR location result;
 
-        !pobranie calkowitej liczby detali
-        elementsNo:=countElements(packet,elemTableCount);
-        !pobranie liczby poszczegolnych elementow
-        nozzles:=elemTableCount{krociecInlet1}+elemTableCount{krociecInlet2}+elemTableCount{krociecOutlet1}+elemTableCount{krociecOutlet2};
-        sensors:=elemTableCount{krociecCzujka1}+elemTableCount{krociecCzujka2}+elemTableCount{krociecZaslepka};
-        lidBrackets:=elemTableCount{wieszakMiski1}+elemTableCount{wieszakMiski2}+elemTableCount{wieszakMiski3}+elemTableCount{wieszakMiski4};
-        stands:=elemTableCount{wieszakDolny}+elemTableCount{wieszakGorny}+elemTableCount{wieszakSpecjalny}+elemTableCount{wieszakTransportowy};
-        holders:=elemTableCount{uchwytRuryWej}+elemTableCount{uchwytRuryWyj};
-        !sprawdzenie czy liczba sie zgadza
-        IF nozzles+sensors+lidBrackets+stands+holders=elementsNo THEN
-            result:=TRUE;
+        TEST detailType
+        CASE wieszakGorny:
+            result:=galantPosition{packetNo}.wieszakGorny;
+        CASE wieszakDolny:
+            result:=galantPosition{packetNo}.wieszakDolny;
+        CASE wieszakTransportowy:
+            result:=galantPosition{packetNo}.wieszakTransportowy;
+        CASE wieszakSpecjalny:
+            result:=galantPosition{packetNo}.wieszakSpecjalny;
+        CASE uchwytRuryWej:
+            result:=galantPosition{packetNo}.uchwytRuryWej;
+        CASE uchwytRuryWyj:
+            result:=galantPosition{packetNo}.uchwytRuryWyj;
+        CASE wieszakMiski1:
+            result:=galantPosition{packetNo}.wieszakMiski1;
+        CASE wieszakMiski2:
+            result:=galantPosition{packetNo}.wieszakMiski2;
+        CASE wieszakMiski3:
+            result:=galantPosition{packetNo}.wieszakMiski3;
+        CASE wieszakMiski4:
+            result:=galantPosition{packetNo}.wieszakMiski4;
+        CASE wieszakMiski5:
+            result:=galantPosition{packetNo}.wieszakMiski5;
+        CASE wieszakMiski6:
+            result:=galantPosition{packetNo}.wieszakMiski6;
+        CASE krociecInlet1:
+            result:=galantPosition{packetNo}.krociecInlet1;
+        CASE krociecInlet2:
+            result:=galantPosition{packetNo}.krociecInlet2;
+        CASE krociecOutlet1:
+            result:=galantPosition{packetNo}.krociecOutlet1;
+        CASE krociecOutlet2:
+            result:=galantPosition{packetNo}.krociecOutlet2;
+        CASE krociecCzujka1:
+            result:=galantPosition{packetNo}.krociecCzujka1;
+        CASE krociecCzujka2:
+            result:=galantPosition{packetNo}.krociecCzujka2;
+        CASE krociecZaslepka:
+            result:=galantPosition{packetNo}.zaslepka;
+        DEFAULT:
+        ENDTEST
+
+        RETURN result;
+    ENDFUNC
+
+    !funkcja do pobierania ktory w kolejnosci spawania/sczepiania jest dany detal
+    ![potrzebne gdy nie chcemy spawac od pierwszego detalu, tylko np. od wieszakaMiski]
+    ! ret: num = ktory w kolejnosci spawania/sczepiania jest dany detal
+    ! arg: selectedDetail - detal ktorego pozycji w sekwencji szukamy
+    ! arg: packetType - w jakim pakiecie/sekwencji szukamy detalu
+    FUNC num getDetailNumber(num selectedDetail,num packetType)
+        VAR num result:=-1;
+        VAR num currentIterator:=1;
+        VAR bool continueSearch:=TRUE;
+
+        !sprawdzamy jaki jest tryb pracy robota
+        IF NOT productionMode THEN
+            !jezeli jest to tryb testowy to szukamy od JAKIEGO detalu zaczynamy spawac (np. czujka, krociec, itp)
+            WHILE continueSearch DO
+                IF galantSequence{packetType,currentIterator}=selectedDetail THEN
+                    continueSearch:=FALSE;
+                    result:=currentIterator;
+                ELSE
+                    continueSearch:=TRUE;
+                    Incr currentIterator;
+                ENDIF
+            ENDWHILE
         ELSE
-            result:=FALSE;
+            !jezeli jest to tryb produkcyjny to szukamy od KTOREGO detalu zaczynamy spawac 
+            !w tym trybie zawsze zaczynamy od pierwszego, niewazne jakiego typu jest !!!
+            result:=1;
         ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !funkcja ktora zwraca liczbe punktow trajektorii przy sczepianiu/spawaniu
+    ! ret: num = szukana liczba punktow
+    ! arg: detailNo - jakiego detalu szukamy punktow
+    ! arg: heft - czy chcemy poznac ilosc punktow sczepiania
+    ! arg: weld - czy chcemy poznac ilosc punktow spawania
+    ! arg: provided - przewidziana maksymalna ilosc punktow (taka jak wielkosc tablicy)
+    ! arg: used - obecnie uzywana liczba punktow (np. gdy mniejsza ilosc sczepow)
+    ! arg: toSave - liczba punktow zapisanych do pliku (do aproksymacji)
+    FUNC num getDetailPointsNo(num detailNo\switch heft|switch weld,\switch provided|switch used|switch toSave)
+        VAR num result:=-1;
+
+        TEST (detailNo)
+        CASE wieszakDolny:
+            IF Present(heft) THEN
+                !chcemy policzyc punkty sczepow
+                IF Present(provided) result:=5;
+                IF Present(used) result:=2;
+                IF Present(toSave) result:=2;
+            ELSEIF Present(weld) THEN
+                !chcemy policzyc punkty spawania
+                IF Present(provided) result:=4;
+                IF Present(used) result:=4;
+                IF Present(toSave) result:=4;
+            ENDIF
+        CASE wieszakGorny:
+            IF Present(heft) THEN
+                !chcemy policzyc punkty sczepow
+                IF Present(provided) result:=10;
+                IF Present(used) result:=4;
+                IF Present(toSave) result:=2;
+            ELSEIF Present(weld) THEN
+                !chcemy policzyc punkty spawania
+                IF Present(provided) result:=10;
+                IF Present(used) THEN
+                    result:=6;
+                    IF upBracketHeftPoint=TRUE result:=8;
+                ENDIF
+                IF Present(toSave) THEN
+                    result:=6;
+                    IF upBracketHeftPoint=TRUE result:=8;
+                ENDIF
+            ENDIF
+        CASE wieszakMiski1,wieszakMiski2,wieszakMiski3,wieszakMiski4,wieszakMiski5,wieszakMiski6:
+            IF Present(heft) THEN
+                !chcemy policzyc punkty sczepow
+                IF Present(provided) result:=7;
+                IF Present(used) result:=2;
+                IF Present(toSave) result:=2;
+            ELSEIF Present(weld) THEN
+                !chcemy policzyc punkty spawania
+                IF Present(provided) result:=7;
+                IF Present(used) result:=5;
+                IF Present(toSave) result:=2;
+            ENDIF
+        CASE wieszakSpecjalny:
+            IF Present(heft) THEN
+                !chcemy policzyc punkty sczepow
+                IF Present(provided) result:=8;
+                IF Present(used) result:=4;
+                IF Present(toSave) result:=2;
+            ELSEIF Present(weld) THEN
+                !chcemy policzyc punkty spawania
+                IF Present(provided) result:=8;
+                IF Present(used) result:=4;
+                IF Present(toSave) result:=2;
+            ENDIF
+        CASE wieszakTransportowy:
+            IF Present(heft) THEN
+                !chcemy policzyc punkty sczepow
+                IF Present(provided) result:=7;
+                IF Present(used) result:=2;
+                IF Present(toSave) result:=2;
+            ELSEIF Present(weld) THEN
+                !chcemy policzyc punkty spawania
+                IF Present(provided) result:=7;
+                IF Present(used) result:=6;
+                IF Present(toSave) result:=6;
+            ENDIF
+        CASE uchwytRuryWej,uchwytRuryWyj:
+            IF Present(heft) THEN
+                !chcemy policzyc punkty sczepow
+                IF Present(provided) result:=5;
+                IF Present(used) result:=2;
+                IF Present(toSave) result:=2;
+            ELSEIF Present(weld) THEN
+                !chcemy policzyc punkty spawania
+                IF Present(provided) result:=5;
+                IF Present(used) result:=4;
+                IF Present(toSave) result:=4;
+            ENDIF
+        CASE krociecInlet1,krociecInlet2,krociecOutlet1,krociecOutlet2:
+            IF Present(heft) THEN
+                !chcemy policzyc punkty sczepow
+                IF Present(provided) result:=9;
+                IF Present(used) result:=4;
+                IF Present(toSave) result:=4;
+            ELSEIF Present(weld) THEN
+                !chcemy policzyc punkty spawania
+                IF Present(provided) result:=9;
+                IF Present(used) result:=9;
+                IF Present(toSave) result:=9;
+            ENDIF
+        CASE krociecCzujka1,krociecCzujka2:
+            IF Present(heft) THEN
+                !chcemy policzyc punkty sczepow
+                IF Present(provided) result:=7;
+                IF Present(used) result:=3;
+                IF Present(toSave) result:=3;
+            ELSEIF Present(weld) THEN
+                !chcemy policzyc punkty spawania
+                IF Present(provided) result:=7;
+                IF Present(used) result:=7;
+                IF Present(toSave) result:=7;
+            ENDIF
+        CASE krociecZaslepka:
+            IF Present(heft) THEN
+                !chcemy policzyc punkty sczepow
+                IF Present(provided) result:=9;
+                IF Present(used) result:=4;
+                IF Present(toSave) result:=4;
+            ELSEIF Present(weld) THEN
+                !chcemy policzyc punkty spawania
+                IF Present(provided) result:=9;
+                IF Present(used) result:=9;
+                IF Present(toSave) result:=9;
+            ENDIF
+        ENDTEST
 
         RETURN result;
     ENDFUNC
@@ -303,22 +418,6 @@ MODULE GalantSpawRLibrary
         RETURN result;
     ENDFUNC
 
-    !funkcja wyliczajaca kat miedzy dwoma wektorami
-    ! ret: num = kat miedzy dwoma wektorami
-    ! arg: vector1 - pierwszy wektor
-    ! arg: vector2 - drugi wektor
-    LOCAL FUNC num angleBetweenVectors(pos vector1,pos vector2)
-        VAR num angle:=9E9;
-
-        !musimy znormalizowac wektory
-        normVector vector1;
-        normVector vector2;
-        !wyliczamy kat miedzy wektorami
-        angle:=ACos(DotProd(vector1,vector2)/(VectMagn(vector1)*VectMagn(vector2)));
-
-        RETURN angle;
-    ENDFUNC
-
     !funkcja wyliczajaca kat miedzy detalem galanterii a baza danego wymiennika
     ! ret: num = kat miedzy baza a detalem
     ! arg: packetType - ktory pakiet jest mierzony (ktora baza wziac pod uwage)
@@ -342,13 +441,13 @@ MODULE GalantSpawRLibrary
             resultAngle:=angleBase-angle;
         ELSE
             ErrWrite "angleGalantBase::ERROR","Nie ma takiego elementu w wymienniku by zmierzyc kat do bazy!";
-            Stop;
+            towerError\handleStop;
         ENDIF
 
         RETURN resultAngle;
     ENDFUNC
 
-    !funkcja wyliczajaca kat miedzy dwoma detalami galanterii - wersja dokladniejsza
+    !funkcja wyliczajaca kat miedzy dwoma detalami (na podstawie ich lokacji)
     ! ret: num = kat miedzy dwoma detalami galanterii
     ! arg: galant1 - pozycja pierwszego detalu
     ! arg: galant2 - pozycja drugiego detalu
@@ -367,10 +466,11 @@ MODULE GalantSpawRLibrary
         RETURN result;
     ENDFUNC
 
-    !wrapper powyzszej funkcji tak aby mozna bylo obliczac katy miedzy kolejnymi galanteriami
-    ! ret: num = kat miedzy dwoma detalami galanterii
-    ! arg: packetType - typ pakietu z jakiego beda brane detale galanterii
-    ! arg: galant - numer nowego detalu (bedzie obliczany kat miedzy nowym a poprzednim detalem)
+    !funkcja wyliczajaca kat miedzy dwoma detalami galanterii reprezentowanymi przez num (ich nazwe)
+    ! ret: num = kat miedzy dwoma detalami galanterii (miedzy galant1 a galant2)
+    ! arg: packetNo - typ pakietu z jakiego beda brane detale galanterii
+    ! arg: galant1 - numer pierwszego detalu uwzglednianego do obliczenia kata
+    ! arg: galant2 - numer drugiego detalu  uwzglednianego do obliczenia kata
     FUNC num angleBetweenGalantNum(num packetNo,num galant1,num galant2)
         VAR num angle:=9E9;
         VAR location firstDetailPos;
@@ -382,6 +482,75 @@ MODULE GalantSpawRLibrary
         angle:=angleBetweenGalant(firstDetailPos.elementWObj,secondDetailPos.elementWObj);
 
         RETURN angle;
+    ENDFUNC
+
+    !funkcja wyliczajaca kat miedzy dwoma wektorami
+    ! ret: num = kat miedzy dwoma wektorami
+    ! arg: vector1 - pierwszy wektor
+    ! arg: vector2 - drugi wektor
+    LOCAL FUNC num angleBetweenVectors(pos vector1,pos vector2)
+        VAR num angle:=9E9;
+
+        !musimy znormalizowac wektory
+        normVector vector1;
+        normVector vector2;
+        !wyliczamy kat miedzy wektorami
+        angle:=ACos(DotProd(vector1,vector2)/(VectMagn(vector1)*VectMagn(vector2)));
+
+        RETURN angle;
+    ENDFUNC
+
+    !funkcja sprawdzajaca czy numer detalu jest poprawny 
+    ! ret: bool = czy podany nr detalu miesci sie w zakresie 1-maxElementNo (TRUE) czy nie (FALSE)
+    ! arg: detailNo - sprawdzany typ (numer) detalu
+    FUNC bool checkDetailNo(num detailNo)
+        IF detailNo>=1 AND detailNo<=maxElementNo THEN
+            RETURN TRUE;
+        ELSE
+            RETURN FALSE;
+        ENDIF
+    ENDFUNC
+
+    !funkcja sprawdzajaca czy numer pakietu jest poprawny 
+    ! ret: bool = czy podany nr pakietu miesci sie w zakresie 1-howManyTypes (TRUE) czy nie (FALSE)
+    ! arg: packetNo - sprawdzany typ (numer) pakietu
+    FUNC bool checkPacketNo(num packetNo)
+        IF packetNo>=1 AND packetNo<=howManyTypes THEN
+            RETURN TRUE;
+        ELSE
+            RETURN FALSE;
+        ENDIF
+    ENDFUNC
+
+    !funkcja zwracajaca istniejace w danym pakiecie elementow oraz dokladna liczbe kroccow, wieszakow, itd
+    ! ret: bool = czy udalo sie poprawnie pobrac wszystkie dane pakietu
+    ! arg: packet - typ pakietu ktory sprawdzamy
+    ! arg: elemTableCount - tabica zawierajaca obecnosc lub nie danych elementow
+    ! arg: nozzles - liczba kroccow w danym pakiecie
+    ! arg: sensors - liczba czujek w danym pakiecie
+    ! arg: lidBrackets - liczba uchwytow miski w danym pakiecie
+    ! arg: stands - liczba wieszakow w danym pakiecie
+    ! arg: holders - liczba uchwytow rur w danym pakiecie
+    FUNC bool getPacketData(packetType packet,INOUT num elemTableCount{*},\INOUT num nozzles,\INOUT num sensors,\INOUT num lidBrackets,\INOUT num stands,\INOUT num holders)
+        VAR bool result:=FALSE;
+        VAR num elementsNo;
+
+        !pobranie calkowitej liczby detali
+        elementsNo:=countElements(packet,elemTableCount);
+        !pobranie liczby poszczegolnych elementow
+        nozzles:=elemTableCount{krociecInlet1}+elemTableCount{krociecInlet2}+elemTableCount{krociecOutlet1}+elemTableCount{krociecOutlet2};
+        sensors:=elemTableCount{krociecCzujka1}+elemTableCount{krociecCzujka2}+elemTableCount{krociecZaslepka};
+        lidBrackets:=elemTableCount{wieszakMiski1}+elemTableCount{wieszakMiski2}+elemTableCount{wieszakMiski3}+elemTableCount{wieszakMiski4};
+        stands:=elemTableCount{wieszakDolny}+elemTableCount{wieszakGorny}+elemTableCount{wieszakSpecjalny}+elemTableCount{wieszakTransportowy};
+        holders:=elemTableCount{uchwytRuryWej}+elemTableCount{uchwytRuryWyj};
+        !sprawdzenie czy liczba sie zgadza
+        IF nozzles+sensors+lidBrackets+stands+holders=elementsNo THEN
+            result:=TRUE;
+        ELSE
+            result:=FALSE;
+        ENDIF
+
+        RETURN result;
     ENDFUNC
 
     !procedura liczaca katy miedzy poszczegolnymi detalami na danym pakiecie
@@ -411,6 +580,84 @@ MODULE GalantSpawRLibrary
         RETURN elementsNo;
     ENDFUNC
 
+    !===========================================
+    !============ LOGIKA PROCESU ===============
+    !===========================================
+
+    !funkcja sprawdzajaca odleglosc miedzy obecnym detalem a najblizszymy sasiadami
+    ! ret: bool = czy sasiedzi sa dostatecznie daleko (TRUE) czy minimum jeden z nich jest za blisko (FALSE)
+    ! arg: packetNo - jaki typ pakietu analizujemy
+    ! arg: currDetail - dla jakiego detalu szukamy najblizszych sasiadow
+    ! arg: closeElement - znaleziony typ galanterii BLISKIEGO sasiada
+    ! arg: angleDiff - znaleziona roznica pozycji katowej miedzy obecnym detalem a BLISKIM sasiadem
+    ! arg: posDiff - znaleziona roznica pozycji XYZ miedzy obecnym detalem a BLISKIM sasiadem
+    FUNC bool checkSafeDistances(num packetNo,num currDetail,INOUT num closeElement{*},INOUT num angleDiff{*},INOUT pos posDiff{*})
+        VAR bool result:=TRUE;
+        VAR num minAngle:=30;
+        VAR num minDist:=60;
+        VAR num closeElementsNo:=0;
+        VAR num packetAngles{maxElementNo};
+        VAR location currDetailInPacket;
+        VAR location closeDetailInPacket;
+
+        !pobieramy informacje o katach detali wzgledem obecnego
+        IF getPacketAngles(packetNo,currDetail,packetAngles)>0 THEN
+            !pobieramy pozycje obecnego detalu
+            currDetailInPacket:=getDetailLocation(packetNo,currDetail);
+            FOR i FROM 1 TO maxElementNo DO
+                !dla kazdego (oprocz obecnego) detalu sprawdzamy czy kat jest mniejszy od zalozonego
+                IF i<>currDetail AND Abs(packetAngles{i})<minAngle THEN
+                    !sprawdzamy jeszcze czy jest na tej samej wysokosci pakietu
+                    closeDetailInPacket:=getDetailLocation(packetNo,i);
+                    IF Distance(currDetailInPacket.elementWObj.trans,closeDetailInPacket.elementWObj.trans)<minDist THEN
+                        !detal jest za blisko - sprawdzamy czy juz jest zamontowany (sczepiony)
+                        IF detailStatusHeft{i}=TRUE THEN
+                            !detal juz jest na pakiecie wrzucamy odpowiedzi do tablicy
+                            Incr closeElementsNo;
+                            closeElement{closeElementsNo}:=i;
+                            angleDiff{closeElementsNo}:=packetAngles{i};
+                            posDiff{closeElementsNo}:=currDetailInPacket.elementWObj.trans-closeDetailInPacket.elementWObj.trans;
+                            !ustawiamy flage wyjsciowa
+                            result:=FALSE;
+                        ENDIF
+                    ENDIF
+                ENDIF
+            ENDFOR
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !funkcja sprawdzajaca czy oby dwa wobj sa takie same
+    ! ret: bool = oby dwa workobjecty sa takie same (TRUE) lub nie (FALSE)
+    ! arg: baseWobj - uklad bazowy (referencyjny) do ktorego porownujemy inny wobj
+    ! arg: currentWobj - uklad porownywany do referencyjnego
+    FUNC bool compareWobjs(wobjdata baseWobj,wobjdata currentWObj)
+        VAR bool result:=FALSE;
+        VAR wobjdata testedWobjs{2};
+        VAR bool transOK:=FALSE;
+        VAR bool rotOK:=FALSE;
+
+        testedWobjs:=[baseWobj,currentWObj];
+        !zaokraglamy kazda wartosc wobj do 3ch miejsc po przecinku
+        FOR i FROM 1 TO Dim(testedWobjs,1) DO
+            testedWobjs{i}.uframe.trans.x:=Round(testedWobjs{i}.uframe.trans.x\Dec:=3);
+            testedWobjs{i}.uframe.trans.y:=Round(testedWobjs{i}.uframe.trans.y\Dec:=3);
+            testedWobjs{i}.uframe.trans.z:=Round(testedWobjs{i}.uframe.trans.z\Dec:=3);
+            testedWobjs{i}.uframe.rot.q1:=Round(testedWobjs{i}.uframe.rot.q1\Dec:=3);
+            testedWobjs{i}.uframe.rot.q2:=Round(testedWobjs{i}.uframe.rot.q2\Dec:=3);
+            testedWobjs{i}.uframe.rot.q3:=Round(testedWobjs{i}.uframe.rot.q3\Dec:=3);
+            testedWobjs{i}.uframe.rot.q4:=Round(testedWobjs{i}.uframe.rot.q4\Dec:=3);
+        ENDFOR
+        !porownujemy ze soba trans i rot
+        IF testedWobjs{1}.uframe.trans=testedWobjs{2}.uframe.trans transOK:=TRUE;
+        IF testedWobjs{1}.uframe.rot=testedWobjs{2}.uframe.rot rotOK:=TRUE;
+
+        result:=transOK AND rotOK;
+
+        RETURN result;
+    ENDFUNC
+
     !procedura do czyszczenia tablic
     ! arg: numTable - tablica NUM do wyczyszczenia
     ! arg: posTable - tablica POS do wyczyszczenia
@@ -432,63 +679,343 @@ MODULE GalantSpawRLibrary
         ENDIF
     ENDPROC
 
-    !funkcja pobierajaca pozycje detalu
-    ! ret: location = pozycja detalu
-    ! num: packetNo - z jakiego typu pakietu nalezy odczytac pozycje
-    ! num: detailType - jakiego detalu odczytac pozycje
-    FUNC location getDetailLocation(num packetNo,num detailType)
-        VAR location result;
+    !funkcja sprawdzajaca tryb procesu (produkcja/testowy) i wyswietla ewentualny komunikat (TESTOWY)
+    ! ret: bool = czy kontynujemy proces (TRUE) czy nie (FALSE)
+    FUNC bool adjustProcessFlow()
+        VAR bool result;
 
-        TEST detailType
-        CASE wieszakGorny:
-            result:=galantPosition{packetNo}.wieszakGorny;
-        CASE wieszakDolny:
-            result:=galantPosition{packetNo}.wieszakDolny;
-        CASE wieszakTransportowy:
-            result:=galantPosition{packetNo}.wieszakTransportowy;
-        CASE wieszakSpecjalny:
-            result:=galantPosition{packetNo}.wieszakSpecjalny;
-        CASE uchwytRuryWej:
-            result:=galantPosition{packetNo}.uchwytRuryWej;
-        CASE uchwytRuryWyj:
-            result:=galantPosition{packetNo}.uchwytRuryWyj;
-        CASE wieszakMiski1:
-            result:=galantPosition{packetNo}.wieszakMiski1;
-        CASE wieszakMiski2:
-            result:=galantPosition{packetNo}.wieszakMiski2;
-        CASE wieszakMiski3:
-            result:=galantPosition{packetNo}.wieszakMiski3;
-        CASE wieszakMiski4:
-            result:=galantPosition{packetNo}.wieszakMiski4;
-        CASE wieszakMiski5:
-            result:=galantPosition{packetNo}.wieszakMiski5;
-        CASE wieszakMiski6:
-            result:=galantPosition{packetNo}.wieszakMiski6;
-        CASE krociecInlet1:
-            result:=galantPosition{packetNo}.krociecInlet1;
-        CASE krociecInlet2:
-            result:=galantPosition{packetNo}.krociecInlet2;
-        CASE krociecOutlet1:
-            result:=galantPosition{packetNo}.krociecOutlet1;
-        CASE krociecOutlet2:
-            result:=galantPosition{packetNo}.krociecOutlet2;
-        CASE krociecCzujka1:
-            result:=galantPosition{packetNo}.krociecCzujka1;
-        CASE krociecCzujka2:
-            result:=galantPosition{packetNo}.krociecCzujka2;
-        CASE krociecZaslepka:
-            result:=galantPosition{packetNo}.zaslepka;
-        DEFAULT:
-        ENDTEST
+        IF productionMode AND RMR_avsAutoMode=1 THEN
+            result:=TRUE;
+        ELSE
+            result:=UIMessageBox(\Header:="PROCESS"\Message:="Continue?"\Buttons:=btnYesNo)=resYes;
+        ENDIF
 
         RETURN result;
     ENDFUNC
 
-    !====================================
-    !=========  LOGOWANIE  ==============
-    !====================================    
+    !procedura ustawiajaca predkosci procesu w zalezonosci od wybranego trybu pracy
+    PROC adjustProcessSpeed()
+        IF productionMode THEN
+            robSpawSpeedVFast:=productionModeSpeeds{veryFast};
+            robSpawSpeedFast:=productionModeSpeeds{fast};
+            robSpawSpeedNormal:=productionModeSpeeds{medium};
+            robSpawSpeedSlow:=productionModeSpeeds{slow};
+            robSpawSpeedVSlow:=productionModeSpeeds{verySlow};
+        ELSE
+            robSpawSpeedVFast:=testModeSpeeds{veryFast};
+            robSpawSpeedFast:=testModeSpeeds{fast};
+            robSpawSpeedNormal:=testModeSpeeds{medium};
+            robSpawSpeedSlow:=testModeSpeeds{slow};
+            robSpawSpeedVSlow:=testModeSpeeds{verySlow};
+        ENDIF
+    ENDPROC
 
-    !procedura do logowania statusu o obecnym packiecie
+    !funkcja przesuwajaca dany wobj wzdluz jego osi Z w celu uwzglednieniu rozmiaru pakietu (rozne lapanie na szczekach)
+    ! ret: wobjdata = pozycja nowego ukladu przesunietego o offset wynikajacy z rozmiaru pakietu
+    ! arg: wobj - uklad wspolrzednych ktory chcemy przesunac
+    ! arg: packetSize - rozmiar pakietu decydujacy o offsecie o ktorym chcemy przesunac 
+    FUNC wobjdata moveWobjToPacketSize(PERS wobjdata wobj,num packetSize)
+        VAR wobjdata result;
+        VAR robtarget temp;
+        VAR wobjdata backup;
+        VAR num offsetVal;
+
+        backup:=wobj;
+        !wyznaczamy o ile trzeba przesunac wobj
+        TEST packetSize
+        CASE 1:
+            offsetVal:=106.5;
+        CASE 2:
+            offsetVal:=106.5;
+        CASE 3:
+            offsetVal:=71.1;
+        CASE 4:
+            offsetVal:=33.85;
+        CASE 5:
+            offsetVal:=0;
+        DEFAULT:
+        ENDTEST
+        !przesuwamy wobj Z+
+        temp:=RelTool(poseToRobt(backup.uframe),0,0,offsetVal);
+        result.uframe:=robtToPose(temp);
+
+        RETURN result;
+    ENDFUNC
+
+    !podjazd do pozycji domowej nad danym detalem galanterii
+    ! arg: posDetail - pozycja danego detalu galanterii
+    ! arg: wobj - workobject w ktorym nalezy odjechac do pozycji domowej
+    ! arg: front - czy narzedzie ma byc zwrocone przodem do osi +X detalu
+    ! arg: back - czy narzedzie ma byc zwrocone tylem do osi +X detalu
+    ! arg: xOffset - odsuniecie pozycji domowej w osi X detalu
+    ! arg: yOffset - odsuniecie pozycji domowej w osi Y detalu
+    ! arg: zOffset - odsuniecie pozycji domowej w osi Z detalu
+    ! arg: watchConf - czy pilnowac konfiguracji podczas dojazdu (jazda po najkrotszej drodze lub do okreslonej konfiguracji robota)
+    PROC galantDetailHomePos(location posDetail,PERS wobjdata wobj\switch front|switch back\num xOffset\num yOffset\num zOffset\switch watchConf)
+        VAR robtarget tempPoint;
+        VAR num xOffsetCurr:=0;
+        VAR num yOffsetCurr:=0;
+        VAR num zOffsetCurr:=100;
+        VAR num zAngle:=0;
+        VAR num detailSide:=0;
+
+        IF Present(xOffset) xOffsetCurr:=xOffset;
+        IF Present(yOffset) yOffsetCurr:=yOffset;
+        IF Present(zOffset) zOffsetCurr:=zOffset;
+
+        !nadajemy odpowiednia orientacje i pozycje
+        WaitTime\InPos,0;
+        tempPoint:=CRobT(\Tool:=torchTool\WObj:=destWobj);
+        !skladamy odpowiednia pozycje
+        tempPoint.trans:=[0,0,0];
+        tempPoint.rot:=[0,0,1,0];
+        !sprawdzamy z ktorej strony to ma byc pozycja bazowa
+        IF Present(front) THEN
+            zAngle:=1;
+            detailSide:=0;
+            tempPoint.robconf:=[0,-1,0,0];
+        ELSEIF Present(back) THEN
+            zAngle:=179;
+            detailSide:=2.5;
+            tempPoint.robconf:=[0,0,-2,0];
+        ELSE
+            !not such case!            
+        ENDIF
+        tempPoint.trans.x:=detailSide;
+        tempPoint.trans.y:=0;
+        tempPoint.trans.z:=zOffsetCurr;
+        tempPoint:=RelTool(tempPoint,0,0,0\Rz:=zAngle);
+        tempPoint:=RelTool(tempPoint,0,0,0\Ry:=45);
+        !przesuwamy o zadany offset
+        tempPoint:=Offs(tempPoint,xOffsetCurr,yOffsetCurr,0);
+        !podjezdzamy do zera wobj z zadanym offsetem
+        IF Present(watchConf) THEN
+            ConfL\On;
+            SingArea\Wrist;
+        ELSE
+            ConfL\Off;
+            SingArea\Wrist;
+        ENDIF
+        MoveL tempPoint,robSpawSpeedFast,fine,torchTool\WObj:=destWobj;
+        WaitTime\InPos,0;
+    ENDPROC
+
+    !funkcja wyliczajaca offset do kolejnej pozycji lezacej na okregu o okreslonym promieniu 
+    ! ret: num = wyliczony offset do zadanej pozycji
+    ! arg: nextPos - pozycja do ktorej chcemy wyliczyc offset
+    ! arg: safeRadius - promien okregu offsetu
+    ! arg: wobj - w jakim ukladzie wyliczamy offset
+    ! arg: X - pobieramy tylko skladowa X offsetu
+    ! arg: Y - pobieramy tylko skladowa Y offsetu
+    FUNC num safeOffset(robtarget nextPos,num safeRadius,wobjdata wobj\switch X|switch Y)
+        VAR num result:=0;
+        VAR pos safeVec;
+
+        IF Present(X) OR Present(Y) THEN
+            safeVec:=nextPos.trans;
+            normVector safeVec;
+            !obliczamy wektor 'bezpieczny'
+            safeVec.x:=safeVec.x*safeRadius;
+            safeVec.y:=safeVec.y*safeRadius;
+            safeVec.z:=safeVec.z*safeRadius;
+            !zwracamy to co potrzeba
+            IF Present(X) result:=safeVec.x;
+            IF Present(Y) result:=safeVec.y;
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !funkcja do generowania unikalnego ID pakietu (na podstawie daty i godziny)
+    ! ret: num = unikalny ID pakietu
+    FUNC num generateID()
+        VAR num result:=1;
+        VAR num token:=0;
+        VAR num i:=1;
+        VAR string temp;
+        VAR string dateTime;
+
+        !pobieramy obecna date
+        dateTime:=CDate();
+        !generujemy poczatkowa wartosc liczby losowej (na podstawie daty)
+        WHILE StrFind(dateTime,1,"-")<StrLen(dateTime)+1 DO
+            token:=StrFind(dateTime,1,"-");
+            temp:=StrPart(dateTime,1,token-1);
+            dateTime:=StrPart(dateTime,token+1,StrLen(dateTime)-token);
+            IF StrToVal(temp,token) THEN
+                result:=result*token;
+                Incr i;
+            ENDIF
+        ENDWHILE
+        IF StrToVal(dateTime,token) result:=result*token;
+        !pobieramy obecna godzine
+        dateTime:=CTime();
+        !generujemy koncowa wartosc liczby losowej (na podstawie godziny) 
+        WHILE StrFind(dateTime,1,":")<StrLen(dateTime)+1 DO
+            token:=StrFind(dateTime,1,":");
+            temp:=StrPart(dateTime,1,token-1);
+            dateTime:=StrPart(dateTime,token+1,StrLen(dateTime)-token);
+            IF StrToVal(temp,token) THEN
+                result:=result+token;
+                Incr i;
+            ENDIF
+        ENDWHILE
+        IF StrToVal(dateTime,token) result:=result+token;
+
+        RETURN result;
+    ENDFUNC
+
+    !procedura do resetowania sygnalu stopRequest po zatrzymaniu programu [event routine]
+    PROC resetStopRequest()
+        Reset stopRequest;
+    ENDPROC
+
+    !procedura do ograniczania ruchow robota
+    ! arg: limitSpd - predkosc do jakiej chcemy ograniczyc ruchy robota
+    ! arg: axis - ktora os chcemy ograniczyc (jezeli nie podane to zwalniamy ruch TCP)
+    ! arg: all - gdy wybrano axis to podajemy ze zmiana ma byc zaplikowana do wszystkich osi
+    PROC limitRobSpeed(num limitSpd,\num axis\switch all)
+        !sprawdzam czy bedziemy chcieli zwolnic poszczegolna os czy TCP
+        IF Present(axis) THEN
+            !chcemy zwolnic osie - spr czy wszystkie czy pojedyncza
+            IF Present(all) THEN
+                !wszystkie osie zwalniamy
+                SpeedLimAxis ROB_1,1,limitSpd;
+                SpeedLimAxis ROB_1,2,limitSpd;
+                SpeedLimAxis ROB_1,3,limitSpd;
+                SpeedLimAxis ROB_1,4,limitSpd;
+                SpeedLimAxis ROB_1,5,limitSpd;
+                SpeedLimAxis ROB_1,6,limitSpd;
+            ELSE
+                !zwalniamy wybrana os
+                SpeedLimAxis ROB_1,axis,limitSpd;
+            ENDIF
+        ELSE
+            !zwalniamy ruch TCP
+            SpeedLimCheckPoint limitSpd;
+        ENDIF
+    ENDPROC
+
+    !========================================
+    !=======  WIEZYCZKA STANOWISKOWA ========
+    !========================================    
+
+    !procedura do zmiany stanu czekania robota na wykonanie dowolnego procesu
+    ! arg: on - wlaczamy stan czekania robota
+    ! arg: off - wylaczamy stan czekania robota
+    PROC towerWaiting(\switch on|switch off)
+        IF Present(on) THEN
+            Set RRM_waiting;
+        ELSEIF Present(off) THEN
+            Reset RRM_waiting;
+        ENDIF
+    ENDPROC
+
+    !procedura do zmiany stanu ostrzezenia robota podczas wykonywania danego procesu
+    ! arg: running - robot przechodzi w stan ostrzezenia ale jeszcze dziala
+    ! arg: handleRunStop - obsluga running warningu, stop i wszystko OK
+    ! arg: help - robot zatrzymuje sie i oczekuje na pomoc operatora
+    ! arg: handleHelpStop - obsluga help warningu, stop i wszystko OK 
+    ! arg: off - wylaczamy stan ostrzezenia
+    PROC towerWarning(\switch running|switch handleRunStop|switch help|switch handleHelpStop|switch off)
+        IF Present(running) THEN
+            !wlaczamy zolta diode (brzeczyk OFF)
+            Set RRM_warningRun;
+            Reset RRM_warningHelp;
+        ELSEIF Present(handleRunStop) THEN
+            !wlaczamy zolta diode (brzeczyk OFF)
+            Set RRM_warningRun;
+            Reset RRM_warningHelp;
+            !obsluzone zatrzymanie programu (tylko watek glowny [on ma warning])
+            Stop;
+            !wylacz zolta diode i brzeczyk
+            Reset RRM_warningRun;
+            Reset RRM_warningHelp;
+        ELSEIF Present(help) THEN
+            !wlaczamy zolta diode i brzeczyk
+            Reset RRM_warningRun;
+            Set RRM_warningHelp;
+        ELSEIF Present(handleHelpStop) THEN
+            !wlaczamy zolta diode i brzeczyk
+            Reset RRM_warningRun;
+            Set RRM_warningHelp;
+            !obsluzone zatrzymanie programu (tylko watek glowny [on ma warning])
+            Stop;
+            !wylacz zolta diode i brzeczyk
+            Reset RRM_warningRun;
+            Reset RRM_warningHelp;
+        ELSEIF Present(off) THEN
+            !wylacz zolta diode i brzeczyk 
+            Reset RRM_warningRun;
+            Reset RRM_warningHelp;
+        ENDIF
+    ENDPROC
+
+    !procedura do zmiany stanu erroru robota podczas wykonywania danego procesu
+    ! arg: on - robot przechodzi w stan bledu
+    ! arg: handleStop - wiezyczka NOK, program STOP
+    ! arg: off - wylaczamy stan bledu
+    PROC towerError(\switch on|switch handleStop|switch off)
+        IF Present(on) THEN
+            !wlacz czerwona diode i brzeczyk
+            Set spawSoftwareError;
+        ELSEIF Present(handleStop) THEN
+            !wlacz czerwona diode i brzeczyk
+            Set spawSoftwareError;
+            !obsluzone zatrzymanie programu (wszystkie watki)
+            Stop\AllMoveTasks;
+            !wylacz czerwona diode i brzeczyk
+            Reset spawSoftwareError;
+        ELSEIF Present(off) THEN
+            !wylacz czerwona diode i brzeczyk
+            Reset spawSoftwareError;
+        ENDIF
+    ENDPROC
+
+    !procedura do testowania logiki wiezyczki
+    PROC towerLogicTest()
+        VAR btnres selected;
+        VAR bool end:=FALSE;
+        VAR string buttons{5}:=["ERROR","WARN RUN","WARN HELP","WAIT","OK"];
+
+        WHILE NOT end DO
+            !wyswietlamy menu dla uzytkownika
+            selected:=UIMessageBox(\Header:="TOWER LOGIC TEST"\Message:="Wybierz opcje"\BtnArray:=buttons\Icon:=iconInfo);
+            !resetujemy obecny stan wiezyczki
+            towerWarning\off;
+            towerWaiting\off;
+            towerError\off;
+            !ustawiamy tryb zgodnie z wyborem
+            IF selected=1 THEN
+                !wybrano opcje ERROR - symulujemy typowa sytuacje w skrypcie
+                ErrWrite "TOWER LOGIC TEST","Test logiki: error stop"\RL2:="Wcisnij PLAY aby kontynuowac!";
+                towerError\handleStop;
+            ELSEIF selected=2 THEN
+                !wybrano opcje WARN RUN - symulujemy typowa sytuacje w skrypcie
+                towerWarning\running;
+            ELSEIF selected=3 THEN
+                !wybrano opcje WARN HELP - symulujemy typowa sytuacje w skrypcie
+                ErrWrite "TOWER LOGIC TEST","Test logiki: warning stop"\RL2:="Wcisnij PLAY aby kontynuowac!";
+                towerWarning\handleHelpStop;
+            ELSEIF selected=4 THEN
+                !wybrano opcje WAIT - symulujemy typowa sytuacje w skrypcie       
+                towerWaiting\on;
+            ELSEIF selected=5 THEN
+                !wybrano opcje OK - czekamy 2 sekundy i pytamy uzytkownika czy zakonczyc
+                WaitTime 2;
+                end:=UIMessageBox(\Header:="TOWER LOGIC TEST"\Message:="Czy zakonczyc testy"\Buttons:=btnYesNo\Icon:=iconInfo)=resYes;
+            ENDIF
+        ENDWHILE
+    ENDPROC
+
+    !===========================================
+    !============= LOGOWANIE ===================
+    !===========================================
+
+    !procedura do logowania statusu o obecnym pakiecie
+    ! arg: packetType - typ pakietu ktory chcemy wylogowac
+    ! arg: elemTableCount - tabela obecnosci detali ktore chcemy wylogowac
+    ! arg: currDetail - numer obecnego detalu jako wyznacznik czy zaczynamy proces i logujemy czy nie
     PROC logCurrPacketStatus(num packetType,num elemTableCount{*},\num currDetail)
         VAR num elementsPresentNo:=0;
         VAR string header:="";
@@ -552,231 +1079,10 @@ MODULE GalantSpawRLibrary
         IF showLog ErrWrite\I,header,ArgName(value)+": "+NumToStr(value,2);
     ENDPROC
 
-    !funkcja sprawdzajaca tryb procesu (produkcja/testowy) i wyswietla ewentualny komunikat (TESTOWY)
-    ! ret: bool = czy kontynujemy proces (TRUE) czy nie (FALSE)
-    FUNC bool adjustProcessFlow()
-        VAR bool result;
+    !===========================================
+    !=============== KONWERSJE =================
+    !===========================================
 
-        IF productionMode THEN
-            result:=TRUE;
-        ELSE
-            result:=UIMessageBox(\Header:="PROCESS"\Message:="Continue?"\Buttons:=btnYesNo)=resYes;
-        ENDIF
-
-        RETURN result;
-    ENDFUNC
-
-    !funkcja ustawiajaca predkosci procesu w zalezonosci od wybranego trybu pracy
-    PROC adjustProcessSpeed()
-        IF productionMode THEN
-            robSpawSpeedVFast:=productionModeSpeeds{veryFast};
-            robSpawSpeedFast:=productionModeSpeeds{fast};
-            robSpawSpeedNormal:=productionModeSpeeds{medium};
-            robSpawSpeedSlow:=productionModeSpeeds{slow};
-            robSpawSpeedVSlow:=productionModeSpeeds{verySlow};
-        ELSE
-            robSpawSpeedVFast:=testModeSpeeds{veryFast};
-            robSpawSpeedFast:=testModeSpeeds{fast};
-            robSpawSpeedNormal:=testModeSpeeds{medium};
-            robSpawSpeedSlow:=testModeSpeeds{slow};
-            robSpawSpeedVSlow:=testModeSpeeds{verySlow};
-        ENDIF
-    ENDPROC
-
-    !funkcja do pobierania ktory w kolejnosci spawania/sczepiania jest dany detal
-    !(potrzebne gdy nie chcemy spawac od pierwszego detalu, tylko np. od wieszakaMiski)
-    ! ret: num = ktory w kolejnosci spawania/sczepiania jest dany detal
-    ! arg: selectedDetail - detal ktorego pozycji w sekwencji szukamy
-    ! arg: packetType - w jakim pakiecie/sekwencji szukamy detalu
-    FUNC num getDetailNumber(num selectedDetail,num packetType)
-        VAR num result:=-1;
-        VAR num currentIterator:=1;
-        VAR bool continueSearch:=TRUE;
-
-        !sprawdzamy jaki jest tryb pracy robota
-        IF NOT productionMode THEN
-            !jezeli jest to tryb testowy to szukamy od JAKIEGO detalu zaczynamy spawac (np. czujka, krociec, itp)
-            WHILE continueSearch DO
-                IF galantSequence{packetType,currentIterator}=selectedDetail THEN
-                    continueSearch:=FALSE;
-                    result:=currentIterator;
-                ELSE
-                    continueSearch:=TRUE;
-                    Incr currentIterator;
-                ENDIF
-            ENDWHILE
-        ELSE
-            !jezeli jest to tryb produkcyjny to szukamy od KTOREGO detalu zaczynamy spawac 
-            !w tym trybie zawsze zaczynamy od pierwszego, niewazne jakiego typu jest !!!
-            result:=1;
-        ENDIF
-
-        RETURN result;
-    ENDFUNC
-
-    !funkcja przesuwajacy dany wobj wzdluz jego osi Z w celu uwzglednieniu rozmiaru pakietu (rozne lapanie na szczypcach)
-    FUNC wobjdata moveWobjToPacketSize(PERS wobjdata wobj,num packetSize)
-        VAR wobjdata result;
-        VAR robtarget temp;
-        VAR wobjdata backup;
-        VAR num offsetVal;
-
-        backup:=wobj;
-        !wyznaczamy o ile trzeba przesunac wobj
-        TEST packetSize
-        CASE 1:
-            offsetVal:=106.5;
-        CASE 2:
-            offsetVal:=106.5;
-        CASE 3:
-            offsetVal:=71.1;
-        CASE 4:
-            offsetVal:=33.85;
-        CASE 5:
-            offsetVal:=0;
-        DEFAULT:
-        ENDTEST
-        !przesuwamy wobj Z+
-        temp:=RelTool(poseToRobt(backup.uframe),0,0,offsetVal);
-        result.uframe:=robtToPose(temp);
-
-        RETURN result;
-    ENDFUNC
-
-    !podjazd do pozycji domowej nad danym detalem galanterii
-    ! arg: posDetail - pozycja danego detalu galanterii
-    ! arg: wobj - workobject w ktorym nalezy odjechac do pozycji domowej
-    ! arg: front / back (switch) - czy podjechac frontem czy odwrocony do wobj
-    PROC galantDetailHomePos(location posDetail,PERS wobjdata wobj\switch front|switch back\num xOffset\num yOffset\num zOffset\switch watchConf)
-        VAR robtarget tempPoint;
-        VAR num xOffsetCurr:=0;
-        VAR num yOffsetCurr:=0;
-        VAR num zOffsetCurr:=100;
-        VAR num zAngle:=0;
-        VAR num detailSide:=0;
-
-        IF Present(xOffset) xOffsetCurr:=xOffset;
-        IF Present(yOffset) yOffsetCurr:=yOffset;
-        IF Present(zOffset) zOffsetCurr:=zOffset;
-
-        !nadajemy odpowiednia orientacje i pozycje
-        WaitTime\InPos,0;
-        tempPoint:=CRobT(\Tool:=torchTool\WObj:=destWobj);
-        !skladamy odpowiednia pozycje
-        tempPoint.trans:=[0,0,0];
-        tempPoint.rot:=[0,0,1,0];
-        !sprawdzamy z ktorej strony to ma byc pozycja bazowa
-        IF Present(front) THEN
-            zAngle:=1;
-            detailSide:=0;
-            tempPoint.robconf:=[0,-1,0,0];
-        ELSEIF Present(back) THEN
-            zAngle:=179;
-            detailSide:=2.5;
-            tempPoint.robconf:=[0,0,-2,0];
-        ELSE
-            !not such case!            
-        ENDIF
-        tempPoint.trans.x:=detailSide;
-        tempPoint.trans.y:=0;
-        tempPoint.trans.z:=zOffsetCurr;
-        tempPoint:=RelTool(tempPoint,0,0,0\Rz:=zAngle);
-        tempPoint:=RelTool(tempPoint,0,0,0\Ry:=45);
-        !przesuwamy o zadany offset
-        tempPoint:=Offs(tempPoint,xOffsetCurr,yOffsetCurr,0);
-        !podjezdzamy do zera wobj z zadanym offsetem
-        IF Present(watchConf) THEN
-            ConfL\On;
-            SingArea\Wrist;
-        ELSE
-            ConfL\Off;
-            SingArea\Wrist;
-        ENDIF
-        MoveL tempPoint,robSpawSpeedFast,fine,torchTool\WObj:=destWobj;
-        WaitTime\InPos,0;
-    ENDPROC
-
-    FUNC num safeOffset(robtarget nextPos,num safeRadius,wobjdata wobj\switch X|switch Y)
-        VAR num result:=0;
-        VAR pos safeVec;
-
-        IF Present(X) OR Present(Y) THEN
-            safeVec:=nextPos.trans;
-            normVector safeVec;
-            !obliczamy wektor 'bezpieczny'
-            safeVec.x:=safeVec.x*safeRadius;
-            safeVec.y:=safeVec.y*safeRadius;
-            safeVec.z:=safeVec.z*safeRadius;
-            !zwracamy to co potrzeba
-            IF Present(X) result:=safeVec.x;
-            IF Present(Y) result:=safeVec.y;
-        ENDIF
-
-        RETURN result;
-    ENDFUNC
-
-    !funkcja do generowania unikalnego ID pakietu (na podstawie daty i godziny)
-    ! ret: num = unikalny ID pakietu
-    FUNC num generateID()
-        VAR num result:=1;
-        VAR num token:=0;
-        VAR num i:=1;
-        VAR string temp;
-        VAR string dateTime;
-
-        !pobieramy obecna date
-        dateTime:=CDate();
-        !generujemy poczatkowa wartosc liczby losowej (na podstawie daty)
-        WHILE StrFind(dateTime,1,"-")<StrLen(dateTime)+1 DO
-            token:=StrFind(dateTime,1,"-");
-            temp:=StrPart(dateTime,1,token-1);
-            dateTime:=StrPart(dateTime,token+1,StrLen(dateTime)-token);
-            IF StrToVal(temp,token) THEN
-                result:=result*token;
-                Incr i;
-            ENDIF
-        ENDWHILE
-        IF StrToVal(dateTime,token) result:=result*token;
-        !pobieramy obecna godzine
-        dateTime:=CTime();
-        !generujemy koncowa wartosc liczby losowej (na podstawie godziny) 
-        WHILE StrFind(dateTime,1,":")<StrLen(dateTime)+1 DO
-            token:=StrFind(dateTime,1,":");
-            temp:=StrPart(dateTime,1,token-1);
-            dateTime:=StrPart(dateTime,token+1,StrLen(dateTime)-token);
-            IF StrToVal(temp,token) THEN
-                result:=result+token;
-                Incr i;
-            ENDIF
-        ENDWHILE
-        IF StrToVal(dateTime,token) result:=result+token;
-
-        RETURN result;
-    ENDFUNC
-
-    !funkcja sprawdzajaca czy numer pakietu jest poprawny 
-    ! ret: bool = czy podany nr pakietu miesci sie w zakresie 1-howManyTypes (TRUE) czy nie (FALSE)
-    ! arg: packetNo - sprawdzany typ (numer) pakietu
-    FUNC bool checkPacketNo(num packetNo)
-        IF packetNo>=1 AND packetNo<=howManyTypes THEN
-            RETURN TRUE;
-        ELSE
-            RETURN FALSE;
-        ENDIF
-    ENDFUNC
-
-    !funkcja sprawdzajaca czy numer detalu jest poprawny 
-    ! ret: bool = czy podany nr detalu miesci sie w zakresie 1-maxElementNo (TRUE) czy nie (FALSE)
-    ! arg: detailNo - sprawdzany typ (numer) detalu
-    FUNC bool checkDetailNo(num detailNo)
-        IF detailNo>=1 AND detailNo<=maxElementNo THEN
-            RETURN TRUE;
-        ELSE
-            RETURN FALSE;
-        ENDIF
-    ENDFUNC
-
-    !========= PROCEDURY DO LOGOWANIA INPODSTAWOWYCH INFORMACJI =============
     !funkcja pobierajaca nazwe typu obecnego detalu skladanego
     ! ret: string = nazwa obecnie skladanego detalu
     ! arg: detailNo - numer obecnie skladanego detalu
@@ -836,93 +1142,28 @@ MODULE GalantSpawRLibrary
         VAR string result:="";
 
         TEST packetNo
-        CASE PG16ALVR:
-            result:="PG16ALVR";
-        CASE PG24ALVR:
-            result:="PG24ALVR";
-        CASE PG16ANTI:
-            result:="PG16ANTI";
-        CASE PG32ACV:
-            result:="PG32ACV";
-        CASE PG16HTP:
-            result:="PG16HTP";
-        CASE PG24HTP:
-            result:="PG24HTP";
-        CASE PG32HTP:
-            result:="PG32HTP";
-        CASE PG32IBC:
-            result:="PG32IBC";
-        CASE PG32NTI:
-            result:="PG32NTI";
-        CASE PG24RAY:
-            result:="PG24RAY";
-        CASE PG32RAY:
-            result:="PG32RAY";
-        CASE PG32WMCLLC:
-            result:="PG32WMCLLC";
-        CASE PG32WMCL:
-            result:="PG32WMCL";
-        CASE PG45AACV:
-            result:="PG45AACV";
-        CASE PG32ALVR:
-            result:="PG32ALVR";
-        CASE PG45ALVR:
-            result:="PG45ALVR";
-        CASE PG45AIBC:
-            result:="PG45AIBC";
-        CASE PG45ANTI:
-            result:="PG45ANTI";
-        CASE PG45AWMCLLC:
-            result:="PG45AWMCLLC";
-        CASE PG45AWMCL:
-            result:="PG45AWMCL";
-        CASE PG50ACV:
-            result:="PG50ACV";
-        CASE PG75ACV:
-            result:="PG75ACV";
-        CASE PG40HTP:
-            result:="PG40HTP";
-        CASE PG50HTP:
-            result:="PG50HTP";
-        CASE PG75HTP:
-            result:="PG75HTP";
-        CASE PG60IBC:
-            result:="PG60IBC";
-        CASE PG80IBC:
-            result:="PG80IBC";
-        CASE PG60LVR:
-            result:="PG60LVR";
-        CASE PG80LVR:
-            result:="PG80LVR";
-        CASE PG75NTI:
-            result:="PG75NTI";
-        CASE PG60RAY:
-            result:="PG60RAY";
-        CASE PG80RAY:
-            result:="PG80RAY";
-        CASE PG75WMCL:
-            result:="PG75WMCL";
-        CASE PG100ACV:
-            result:="PG100ACV";
-        CASE PG120ACV:
-            result:="PG120ACV";
-        CASE PG120HTP:
-            result:="PG120HTP";
-        CASE PG120IBC:
-            result:="PG120IBC";
-        CASE PG120LVR:
-            result:="PG120LVR";
-        CASE PG100NTI:
-            result:="PG100NTI";
-        CASE PG120NTI:
-            result:="PG120NTI";
-        CASE PG120RAY:
-            result:="PG120RAY";
-        CASE PG100WMCL:
-            result:="PG100WMCL";
-        CASE PG120WMCL:
-            result:="PG120WMCL";
+        CASE PG32NPG:
+            result:="PG32NPG";
+        CASE PG45ANPG:
+            result:="PG45ANPG";
+        CASE PG75NPG:
+            result:="PG75NPG";
+        CASE PG100NPG:
+            result:="PG100NPG";
+        CASE PG120NPG:
+            result:="PG120NPG";
+        CASE NPG32NTI:
+            result:="NPG32NTI";
+        CASE NPG32IBC:
+            result:="NPG32IBC";
+        CASE NPG45ALVR:
+            result:="NPG45ALVR";
+        CASE NPG45ANTI:
+            result:="NPG45ANTI";
         DEFAULT:
+            ErrWrite "GalantSpawRLibary::packetToString:","Brak obslugi tego typu pakietu";
+            Stop;
+            Stop;
         ENDTEST
         RETURN result;
     ENDFUNC
@@ -1032,357 +1273,793 @@ MODULE GalantSpawRLibrary
         RETURN result;
     ENDFUNC
 
+    !funkcja pobierajaca rozmiar pakietu na podstawie jego typu
+    ! ret: num = rozmiar pakietu (1-5)
+    ! arg: packetType - typ pakietu
     FUNC num packetSizeFromType(num packetType)
         VAR num result;
 
         TEST packetType
-        CASE PG16ALVR:
-            result:=1;
-        CASE PG24ALVR:
-            result:=1;
-        CASE PG16ANTI:
-            result:=1;
-        CASE PG32ACV:
+        CASE PG32NPG:
             result:=2;
-        CASE PG16HTP:
-            result:=2;
-        CASE PG24HTP:
-            result:=2;
-        CASE PG32HTP:
-            result:=2;
-        CASE PG32IBC:
-            result:=2;
-        CASE PG32NTI:
-            result:=2;
-        CASE PG24RAY:
-            result:=2;
-        CASE PG32RAY:
-            result:=2;
-        CASE PG32WMCLLC:
-            result:=2;
-        CASE PG32WMCL:
-            result:=2;
-        CASE PG45AACV:
+        CASE PG45ANPG:
             result:=3;
-        CASE PG32ALVR:
+        CASE PG75NPG:
+            result:=4;
+        CASE PG100NPG:
+            result:=5;
+        CASE PG120NPG:
+            result:=5;
+        CASE NPG32NTI:
+            result:=2;
+        CASE NPG32IBC:
+            result:=2;
+        CASE NPG45ALVR:
             result:=3;
-        CASE PG45ALVR:
+        CASE NPG45ANTI:
             result:=3;
-        CASE PG45AIBC:
-            result:=3;
-        CASE PG45ANTI:
-            result:=3;
-        CASE PG45AWMCLLC:
-            result:=3;
-        CASE PG45AWMCL:
-            result:=3;
-        CASE PG50ACV:
-            result:=4;
-        CASE PG75ACV:
-            result:=4;
-        CASE PG40HTP:
-            result:=4;
-        CASE PG50HTP:
-            result:=4;
-        CASE PG75HTP:
-            result:=4;
-        CASE PG60IBC:
-            result:=4;
-        CASE PG80IBC:
-            result:=4;
-        CASE PG60LVR:
-            result:=4;
-        CASE PG80LVR:
-            result:=4;
-        CASE PG75NTI:
-            result:=4;
-        CASE PG60RAY:
-            result:=4;
-        CASE PG80RAY:
-            result:=4;
-        CASE PG75WMCL:
-            result:=4;
-        CASE PG100ACV:
-            result:=5;
-        CASE PG120ACV:
-            result:=5;
-        CASE PG120HTP:
-            result:=5;
-        CASE PG120IBC:
-            result:=5;
-        CASE PG120LVR:
-            result:=5;
-        CASE PG100NTI:
-            result:=5;
-        CASE PG120NTI:
-            result:=5;
-        CASE PG120RAY:
-            result:=5;
-        CASE PG100WMCL:
-            result:=5;
-        CASE PG120WMCL:
-            result:=5;
         DEFAULT:
+            ErrWrite "GalantSpawRLibary::packetSizeFromType:","Brak obslugi tego typu pakietu";
+            Stop;
+            Stop;
         ENDTEST
 
         RETURN result;
     ENDFUNC
 
-    !funkcja ktora zwraca liczbe punktow trajektorii przy sczepianiu/spawaniu
-    ! ret: num = szukana liczba punktow
-    ! arg: detailNo - jakiego detalu szukamy punktow
-    ! arg: heft - czy chcemy poznac ilosc punktow sczepiania
-    ! arg: weld - czy chcemy poznac ilosc punktow spawania
-    ! arg: provided - przewidziana maksymalna ilosc punktow (taka jak wielkosc tablicy)
-    ! arg: toSave - liczba punktow zapisanych do pliku (do aproksymacji)
-    FUNC num getDetailPointsNo(num detailNo\switch heft|switch weld,\switch provided|switch used|switch toSave)
+    !========================================
+    !========  PRZEGLAD STANOWISKA  =========
+    !========================================
+
+    !glowna procedura do okresowych przegladow stanowiska
+    PROC stationInspectService()
+        VAR num inspectionTest:=0;
+        VAR num testValue:=0;
+        VAR errnum breakVal;
+        VAR string headMsg:="INSPEKCJA STANOWISKA";
+
+        !wlaczamy zolta diode
+        towerWarning\running;
+        !logujemy informacje o starcie testu
+        stationInspectSave 0\start\saveMessage:=">>>>>>>> INSPECT START - ROBOT:";
+        !ogledziny zewnetrzne
+        WHILE inspectionTest<inspectEyeOK DO
+            UIMsgBox\Header:=headMsg,"TEST 1/7: ogledziny zewnetrzne."\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            inspectionTest:=stationInspectEye();
+        ENDWHILE
+        !sprawdzenie WAGO + czujnikow
+        WHILE inspectionTest<inspectSensorsOK DO
+            UIMsgBox\Header:=headMsg,"TEST 2/7: sprawdzenie czujnikow."\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            inspectionTest:=stationInspectSensors();
+        ENDWHILE
+        !sprawdzenie sprezonego powietrza
+        WHILE inspectionTest<inspectAirOK DO
+            UIMsgBox\Header:=headMsg,"TEST 3/7: sprawdzenie sprezonego powietrza."\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            inspectionTest:=stationInspectAir(\getValue);
+        ENDWHILE
+        !sprawdzenie komunikacji z robMontaz
+        WHILE inspectionTest<inspectCommOK DO
+            UIMsgBox\Header:=headMsg,"TEST 4/7: sprawdzenie komunikacji."\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            inspectionTest:=stationInspectComm(\robMontaz);
+        ENDWHILE
+        !sprawdzenie pozycji zerowej 
+        WHILE inspectionTest<inspectZeroPosOK DO
+            UIMsgBox\Header:=headMsg,"TEST 5/7: sprawdzenie pozycji zerowej."\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            inspectionTest:=stationInspectZeroPos();
+        ENDWHILE
+        !sprawdzenie palnika
+        WHILE inspectionTest<inspectTorchOK DO
+            UIMsgBox\Header:=headMsg,"TEST 6/7: sprawdzenie palnika."\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            inspectionTest:=stationInspectTorch();
+        ENDWHILE
+        !sprawdzenie spawarki
+        WHILE inspectionTest<inspectFroniusOK DO
+            UIMsgBox\Header:=headMsg,"TEST 7/7: sprawdzenie spawarki."\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            inspectionTest:=stationInspectFronius();
+        ENDWHILE
+        !zapisujemy informacje o koncu inspekcji
+        stationInspectSave 0\saveMessage:="<<<<<<<< INSPECT STOP - ROBOT!";
+        stationInspectSave 0\saveMessage:="";
+        !zakanczamy raport testow
+        stationInspectSave 0\stop;
+        !informujemy operatora o koncu inspekcji 
+        UIMsgBox\Header:="INSPEKCJA STANOWISKA","Koniec sprawdznia stanowiska robSpawR."\Buttons:=btnOK\Icon:=iconInfo
+                                                        \MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+        !wylaczamy zolta diode
+        towerWarning\off;
+    ENDPROC
+
+    !funkcja do ogledzin zewnetrznych stacji
+    ! ret: num = status ogledzin OK [>0] lub NOK [<0]
+    FUNC num stationInspectEye()
+        VAR num result:=0;
+        VAR btnres selected:=-1;
+        VAR string reportCorr:="";
+        VAR string msg{5};
+        VAR string btn{5}:=["UWAGI","","","","OK"];
+
+        msg{1}:="Sprawdz stan zewnetrzny stanowiska.";
+        msg{2}:="";
+        msg{3}:=" Gdy skonczysz kliknij:";
+        msg{4}:="  UWAGI - gdy cos wymagalo poprawy";
+        msg{5}:="  OK - gdy wszystko OK";
+        selected:=UIMessageBox(\Header:="OGLEDZINY ZEWNETRZNE"\MsgArray:=msg\BtnArray:=btn\Icon:=iconWarning);
+        IF selected=1 THEN
+            !prosimy uzytkownika zeby wpisal swoje uwagi
+            reportCorr:=UIAlphaEntry(\Header:="OGLEDZINY ZEWNETRZNE"\Message:="Napisz co wymagalo poprawy [max 80 znakow]:"
+                                     \Icon:=iconWarning\InitString:=reportCorr);
+        ELSE
+            !uzytkownik wcisnal OK
+            reportCorr:="WSZYSTKO OK!";
+        ENDIF
+        !uaktualniamy status
+        result:=inspectEyeOK;
+        !zapisz uwagi do pliku
+        stationInspectSave inspectEyeOK\saveMessage:=reportCorr;
+
+        RETURN result;
+    ERROR
+        !sprawdzamy czy przypadkiem nie wpisano za dlugiego opisu
+        IF ERRNO=ERR_STRTOOLNG THEN
+            ErrWrite "ERROR::stationInspectEye","Podales za dlugi opis... Musisz go skrocic do 80 znakow";
+            RETRY;
+        ENDIF
+    ENDFUNC
+
+    !funkcja do sprawdzenia czujnikow (a wiec i wyspy WAGO) w stacji
+    ! ret: num = status sprawdzenia czujnikow OK [>0] lub NOK [<0]
+    FUNC num stationInspectSensors()
+        VAR num result:=0;
+        VAR num userGripperCnt:=0;
+        VAR bool timeout:=FALSE;
+        VAR bool retryCheck:=TRUE;
+        VAR bool userPacketPresent:=FALSE;
+        VAR errnum breakVal;
+
+        !pierw sprawdzamy komunikacje z modulem WAGO
+        IF IOUnitState("WAGO")=IOUNIT_RUNNING THEN
+            !komunikacja OK
+            !=========================== sprawdzamy stan czujnikow pakietu
+            userPacketPresent:=UIMessageBox(\Header:="CZUJNIKI [1/3]"\Message:="Czy na stanowisku robSpawR jest wymiennik?"\Buttons:=btnYesNo\Icon:=iconWarning)=resYes;
+            !spawdzamy stan czujnikow obecnosci pakietu (w szczekach obrotnika)
+            WHILE NOT ((userPacketPresent=TRUE AND rotatorPacketPresent()=1) OR (userPacketPresent=FALSE AND rotatorPacketPresent()=0)) DO
+                !inny status czujnikow z tym co podal uzytkownik
+                result:=-inspectSensorsOK;
+                !zapisz uwagi do pliku
+                stationInspectSave -inspectSensorsOK\saveMessage:="CZUJNIKI PAKIETU NOK!";
+                !log dla uzytkownika
+                ErrWrite "ERROR::stationInspectSensors","Stan pakietu niezgodny z rzeczywistoscia... Sprawdz:"
+                                                  \RL2:="1. zaslianie czujnikow w szczece?"\RL3:="2. poprawnosc stanu diod czujnikow?";
+                !dajemy uzytkownikowi mozliwosc reakcji
+                Stop;
+            ENDWHILE
+            !informujemy uzytkownika o tym ze wszystko jest OK
+            UIMsgBox\Header:="CZUJNIKI [1/3]","Czujniki pakietu OK!"\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            !zapisujemy ze czujniki pakietu OK
+            stationInspectSave inspectSensorsOK\saveMessage:="CZUJNIKI PAKIETU OK!";
+            !=========================== sprawdzamy stan czujnikow docisku
+            UIMsgBox\Header:="CZUJNIKI [2/3]","Robot wykona testy docisku - zachowaj ostroznosc!!!"\Buttons:=btnOK\Icon:=iconWarning;
+            WHILE retryCheck DO
+                IF userPacketPresent=FALSE THEN
+                    !chowamy tlok dociskajacy
+                    timeout:=TRUE;
+                    WHILE timeout=TRUE DO
+                        Reset RR_clampActuatorOn;
+                        Set RR_clampActuatorOff;
+                        WaitDI RR_clampActuatorClosed,1\MaxTime:=5\TimeFlag:=timeout;
+                        IF timeout THEN
+                            !przekroczono czas oczekiwania na sygnal = wynik NOK
+                            result:=-inspectSensorsOK;
+                            !zapisz uwagi do pliku
+                            stationInspectSave -inspectSensorsOK\saveMessage:="CZUJNIK COFNIECIA TLOKA NOK!";
+                            !czujnik cofniecia docisku nie dziala dobrze... log dla uzytkownika
+                            ErrWrite "ERROR::stationInspectSensors","Czujnik cofniecia tloka docisku nie dziala... Sprawdz:"
+                                                          \RL2:="1. pozycje kontaktronu?"\RL3:="2. zasilanie i diode kontaktronu?";
+                            !dajemy uzytkownikowi mozliwosc reakcji
+                            Stop;
+                        ELSE
+                            !wynik OK
+                            result:=inspectSensorsOK;
+                            !zapisz uwagi do pliku
+                            stationInspectSave inspectSensorsOK\saveMessage:="CZUJNIK COFNIECIA TLOKA OK!";
+                        ENDIF
+                    ENDWHILE
+                    !wysuwamy tlok dociskajacy
+                    timeout:=TRUE;
+                    WHILE timeout=TRUE DO
+                        Reset RR_clampActuatorOff;
+                        Set RR_clampActuatorOn;
+                        WaitDI RR_clampActuatorOpened,1\MaxTime:=5\TimeFlag:=timeout;
+                        IF timeout THEN
+                            !przekroczono czas oczekiwania na sygnal = wynik NOK
+                            result:=-inspectSensorsOK;
+                            !zapisz uwagi do pliku
+                            stationInspectSave -inspectSensorsOK\saveMessage:="CZUJNIK WYSUNIECIA TLOKA NOK!";
+                            !czujnik wysuniecia docisku nie dziala dobrze... log dla uzytkownika
+                            ErrWrite "ERROR::stationInspectSensors","Czujnik wysuniecia tloka docisku nie dziala... Sprawdz:"
+                                                          \RL2:="1. pozycje kontaktronu?"\RL3:="2. zasilanie i diode kontaktronu?";
+                            !dajemy uzytkownikowi mozliwosc reakcji
+                            Stop;
+                        ELSE
+                            !wynik OK
+                            result:=inspectSensorsOK;
+                            !zapisz uwagi do pliku
+                            stationInspectSave inspectSensorsOK\saveMessage:="CZUJNIK WYSUNIECIA TLOKA OK!";
+                            !sprawdzamy jeszcze czujnik cisnienia
+                            WaitDI RR_pressureControlClamp,1\MaxTime:=5\TimeFlag:=timeout;
+                            IF timeout THEN
+                                !przekroczono czas oczekiwania na sygnal = wynik NOK
+                                result:=-inspectSensorsOK;
+                                !zapisz uwagi do pliku
+                                stationInspectSave -inspectSensorsOK\saveMessage:="CZUJNIK CISNIENIA NOK!";
+                                !czujnik wysuniecia docisku nie dziala dobrze... log dla uzytkownika
+                                ErrWrite "ERROR::stationInspectSensors","Czujnik cisnienia nie dziala... Sprawdz:"
+                                                          \RL2:="1. zasilanie czujnika?"\RL3:="2. ustawienia czujnika?";
+                                !dajemy uzytkownikowi mozliwosc reakcji
+                                Stop;
+                            ELSE
+                                !wynik OK
+                                result:=inspectSensorsOK;
+                                !zapisz uwagi do pliku
+                                stationInspectSave inspectSensorsOK\saveMessage:="CZUJNIK CISNIENIA OK!";
+                            ENDIF
+                        ENDIF
+                    ENDWHILE
+                    !konczymy sprawdzenie - wszystko OK
+                    retryCheck:=FALSE;
+                ELSE
+                    !jezeli nie sa wlaczone sygnaly docisku to teraz je wlaczamy
+                    IF NOT (DOutput(RR_clampActuatorOff)=0 AND DOutput(RR_clampActuatorOn)=1) THEN
+                        Reset RR_clampActuatorOff;
+                        Set RR_clampActuatorOn;
+                    ENDIF
+                    !czekamy na potwierdzenie wykrycia oporu (cisnienie wzrosnie)
+                    WaitDI RR_pressureControlClamp,1\MaxTime:=5\TimeFlag:=timeout;
+                    IF timeout THEN
+                        !przekroczono czas oczekiwania na sygnal = wynik NOK
+                        result:=-inspectSensorsOK;
+                        !zapisz uwagi do pliku
+                        stationInspectSave -inspectSensorsOK\saveMessage:="CZUJNIK CISNIENIA NOK!";
+                        !czujnik cisnienia nie dziala dobrze... log dla uzytkownika
+                        ErrWrite "ERROR::stationInspectSensors","Brak cisnienia w obwodzie docisku... Sprawdz:"\RL2:="1. zaslianie powietrza?"
+                                                  \RL3:="2. ustawienia progu czujnika?";
+                        !dajemy uzytkownikowi mozliwosc reakcji
+                        Stop;
+                    ELSE
+                        !konczymy sprawdzenie - wszystko OK
+                        retryCheck:=FALSE;
+                        !wynik OK
+                        result:=inspectSensorsOK;
+                        !zapisz uwagi do pliku
+                        stationInspectSave inspectSensorsOK\saveMessage:="CZUJNIK CISNIENIA OK!";
+                    ENDIF
+                ENDIF
+            ENDWHILE
+            !informujemy uzytkownika o tym ze wszystko jest OK
+            UIMsgBox\Header:="CZUJNIKI [2/3]","Czujniki docisku OK!"\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            !zapisujemy ze czujniki docisku OK
+            stationInspectSave inspectSensorsOK\saveMessage:="CZUJNIKI DOCISKU OK!";
+            !=========================== sprawdzamy stan czujnikow szczek
+            IF userPacketPresent=FALSE THEN
+                retryCheck:=TRUE;
+                UIMsgBox\Header:="CZUJNIKI [3/3]","Robot wykona test szczek - obserwuj je!!!"\Buttons:=btnOK\Icon:=iconWarning;
+                WHILE retryCheck DO
+                    !otworz szczeki
+                    Reset RR_graspActuatorOff;
+                    Set RR_graspActuatorOn;
+                    WaitTime\InPos,3;
+                    !schowaj szczeki
+                    Reset RR_graspActuatorOn;
+                    Set RR_graspActuatorOff;
+                    WaitTime\InPos,3;
+                    !pytanie do uzytkownika czy szczeki sie ruszyly
+                    retryCheck:=UIMessageBox(\Header:="SZCZEKI"\Message:="Czy szczeki wykonaly ruch?"\Buttons:=btnYesNo\Icon:=iconWarning)<>resYes;
+                    IF retryCheck THEN
+                        !przekroczono czas oczekiwania na sygnal = wynik NOK
+                        result:=-inspectSensorsOK;
+                        !zapisz uwagi do pliku
+                        stationInspectSave -inspectSensorsOK\saveMessage:="SZCZEKI NOK!";
+                        !czujnik cisnienia nie dziala dobrze... log dla uzytkownika
+                        ErrWrite "ERROR::stationInspectSensors","Brak powietrza w obwodzie szczek... Sprawdz:"
+                                                          \RL2:="1. zaslianie powietrza?"\RL3:="2. dzialanie przekaznika?";
+                        !dajemy uzytkownikowi mozliwosc reakcji
+                        Stop;
+                    ENDIF
+                ENDWHILE
+                !informujemy uzytkownika o tym ze wszystko jest OK
+                UIMsgBox\Header:="CZUJNIKI [3/3]","Czujniki szczek OK!"\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+                !zapisujemy ze czujniki szczek OK
+                stationInspectSave inspectSensorsOK\saveMessage:="SZCZEKI OK!";
+            ELSE
+                UIMsgBox\Header:="CZUJNIKI [3/3]","Zakladam ze szczeki sa OK - nie moge ich sprawdzic bo jest pakiet..."\Buttons:=btnOK\Icon:=iconWarning;
+                !zapisujemy ze czujniki szczek PRAWDOPODOBNIE OK
+                stationInspectSave inspectSensorsOK\saveMessage:="SZCZEKI OK (PAKIET)!";
+            ENDIF
+            !wszystkie czujniki dzialaja poprawnie
+            result:=inspectSensorsOK;
+            !zapisz uwagi do pliku
+            stationInspectSave inspectSensorsOK\saveMessage:="WSZYSTKO OK!";
+            !na koniec informujemy uzytkownika ze wszystko jest OK
+            UIMsgBox\Header:="CZUJNIKI","Dzialanie czujnikow OK!"\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+        ELSE
+            !komunikacja NOK
+            result:=-inspectSensorsOK;
+            !zapisz uwagi do pliku
+            stationInspectSave inspectSensorsOK\saveMessage:="WAGO NOK!";
+            !logujemy info dla uzytkownika
+            ErrWrite "ERROR::stationInspectSensors","Brak komunikacji z modulem WAGO"\RL2:="Zrestartuj Wago LUB robMontaz i wcisnij START";
+            !zatrzymujemy proces zeby uzytkownik mogl zareagowac
+            Stop;
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !funkcja do sprawdzenia sprezonego powietrza w stacji
+    ! ret: num = status sprawdzenia powietrza OK [>0] lub NOK [<0]
+    ! arg: getValue - czy pytac uzytkownika o wartosc ze wskaznika
+    FUNC num stationInspectAir(\switch getValue)
+        VAR num result:=0;
+        VAR num airValue:=0;
+        VAR num packetValue:=0;
+        VAR bool timeout:=FALSE;
+        VAR errnum breakVal;
+
+        !jezeli nie sa wlaczone sygnaly docisku to teraz je wlaczamy
+        IF NOT (DOutput(RR_clampActuatorOff)=0 AND DOutput(RR_clampActuatorOn)=1) THEN
+            UIMsgBox\Header:="SPREZONE POWIETRZE","Tlok wysunie sie po wcisnieciu OK."\Buttons:=btnOK\Icon:=iconWarning;
+            Reset RR_clampActuatorOff;
+            Set RR_clampActuatorOn;
+        ENDIF
+        !sprawdzamy czy jest sprezone powietrze
+        WaitDI RR_pressureControlClamp,1\MaxTime:=5\TimeFlag:=timeout;
+        IF timeout=FALSE THEN
+            !powietrze OK
+            result:=inspectAirOK;
+            !prosba do usera aby podal wartosc ze wskaznika
+            IF Present(getValue) THEN
+                airValue:=UINumEntry(\Header:="SPREZONE POWIETRZE"\Message:="Powietrze OK. Podaj wartosc ze wskaznika."\Icon:=iconWarning\MinValue:=0\MaxValue:=10);
+            ELSE
+                UIMsgBox\Header:="SPREZONE POWIETRZE","Sprezone powietrze OK."\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            ENDIF
+            !zapisz wynik i wartosc
+            stationInspectSave result\saveMessage:="WSZYSTKO OK!"\saveValue:=airValue;
+            !mozemy cofnac tlok (jezeli nie ma wymiennika)
+            packetValue:=rotatorPacketPresent();
+            IF packetValue=0 THEN
+                Reset RR_clampActuatorOn;
+                Set RR_clampActuatorOff;
+            ELSEIF packetValue=-1 THEN
+                ErrWrite "ERROR::stationInspectAir","Nie moge cofnac docisku... Zly stan czujnikow pakietu!";
+            ENDIF
+        ELSE
+            !powietrze NOK
+            result:=-inspectAirOK;
+            !loguj informacje do pliku (log do usera procedurze checkAir)
+            stationInspectSave result\saveMessage:="SPREZONE POWIETRZE NOK!";
+            !wyrzuc informacje dla uzytkownika
+            ErrWrite "ERROR::stationInspectAir","Brak sprezonego powietrza... Sprawdz:"
+                                          \RL2:="1. zaslianie powietrza?"\RL3:="2. dzialanie przekaznika?";
+            !dajemy uzytkownikowi mozliwosc reakcji
+            Stop;
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !funkcja do sprawdzenia komunikacji z robotem robMontaz
+    ! ret: num = status sprawdzenia komunikacji OK [>0] lub NOK [<0]
+    ! arg: robMontaz - czy chcemy sprawdzic komunikacje z robMontaz
+    FUNC num stationInspectComm(\switch robMontaz)
+        VAR num result:=0;
+        VAR errnum breakVal;
+        VAR bool timeout:=FALSE;
+        VAR bool retryTest:=TRUE;
+        VAR bool robComm;
+
+        !czy chcemy sprawdzic komunikacje z obecnym robotem
+        WHILE Present(robMontaz) AND retryTest DO
+            !sprawdzamy stan UNITu
+            IF IOUnitState("robMontaz")=IOUNIT_RUNNING THEN
+                !sprawdzamy czy otrzymamy handshake od robBig
+                Set RRM_testConnection;
+                WaitDI RMR_testConnection,1\MaxTime:=3\TimeFlag:=timeout;
+                Reset RRM_testConnection;
+                IF timeout THEN
+                    !nie otrzymalismy odpowiedzi
+                    robComm:=FALSE;
+                    retryTest:=TRUE;
+                    !uaktualniamy rezultat
+                    result:=-inspectCommOK;
+                    !zapisujemy informacje
+                    stationInspectSave result\saveMessage:="ROBMONTAZ HANDSHAKE NOK!";
+                    !logujemy info dla uzytkownika
+                    ErrWrite "ERROR::stationInspectComm","Brak komunikacji z robMontaz"\RL2:="Polaczenie OK ale brak odpowiedzi"
+                                                       \RL3:="Zrestartuj robMontaz lub sprawdz robMontaz";
+                    !zatrzymujemy proces zeby uzytkownik mogl zareagowac
+                    Stop;
+                ELSE
+                    !otrzymalismy odpowiedz - wszystko OK
+                    robComm:=TRUE;
+                    retryTest:=FALSE;
+                    !uaktualniamy rezultat
+                    result:=inspectCommOK;
+                    !zapisujemy informacje
+                    stationInspectSave result\saveMessage:="ROBMONTAZ OK!";
+                    !informujemy uzytkownika o poprawnej komunikacji
+                    UIMsgBox\Header:="KOMUNIKACJA ROBOT","Komunikacja robSpawR <-> robMontaz OK."\Buttons:=btnOK
+                                                                  \Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+                ENDIF
+            ELSE
+                !unit komunikacyjny w ogole nie dziala
+                robComm:=FALSE;
+                retryTest:=TRUE;
+                !uaktualniamy rezultat
+                result:=-inspectCommOK;
+                !zapisujemy informacje
+                stationInspectSave result\saveMessage:="ROBMONTAZ COMM NOK!";
+                !logujemy info dla uzytkownika
+                ErrWrite "ERROR::stationInspectComm","Brak komunikacji z robMontaz"
+                                                   \RL2:="Brak polaczenia..."\RL3:="Zrestartuj robMontaz lub sprawdz robMontaz";
+                !zatrzymujemy proces zeby uzytkownik mogl zareagowac
+                Stop;
+            ENDIF
+        ENDWHILE
+        !po sprawdzeniu wszystkich robotow wystawiamy rezultat
+        IF robComm THEN
+            result:=inspectCommOK;
+        ELSE
+            result:=-inspectCommOK;
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !funkcja do sprawdzenia pozycji zerowej robota
+    ! ret: num = status sprawdzenia pozycji zerowej OK [>0] lub NOK [<0]
+    FUNC num stationInspectZeroPos()
+        VAR num result:=0;
+        VAR num airValue:=0;
+        VAR errnum breakVal;
+        VAR jointtarget currJ;
+
+        !podjezdzamy robotem do pozycji zerowej
+        MoveAbsJ zeroRobJoint,robSpawSpeedNormal,fine,tool0\Wobj:=wobj0;
+        !sprawdzamy czy robot jest w pozycji zerowej
+        IF UIMessageBox(\Header:="POZYCJA ZEROWA"\Message:="Czy znaczniki w pozycji zerowej robota sa OK?"\Buttons:=btnYesNo\Icon:=iconWarning)=resYes THEN
+            !pozycja zerowa OK
+            result:=inspectZeroPosOK;
+            !zapisz wynik i wartosc
+            stationInspectSave result\saveMessage:="POZYCJA ZEROWA OK!";
+            !wracamy do pozycji domowej
+            robSpawGoToHome TRUE;
+        ELSE
+            !powietrze NOK
+            result:=-inspectZeroPosOK;
+            !loguj informacje do pliku (log do usera procedurze checkAir)
+            stationInspectSave result\saveMessage:="POZYCJA ZEROWA NOK!";
+            !logujemy info dla uzytkownika
+            ErrWrite "ERROR::stationInspectZeroPos","Pozycja zerowa NOK..."
+               \RL2:="W trybie MANUAL podjedz tak, aby znaczniki sie zgadzaly."\RL3:="Skalibruj robota.";
+            !zatrzymujemy proces zeby uzytkownik mogl zareagowac
+            Stop;
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !funkcja do sprawdzenia palnika
+    ! ret: num = status palnika OK [>0] lub NOK [<0]
+    FUNC num stationInspectTorch()
         VAR num result:=-1;
+        VAR btnres selected:=-1;
+        VAR string reportCorr:="WSZYSTKO OK!";
+        VAR string msg{5}:=["Inspekcja palnika",""," Kliknij:","  SPRAWDZ - by podjechac robotem do inspekcji",""];
+        VAR string btn{5}:=["SPRAWDZ","","","",""];
 
-        TEST (detailNo)
-        CASE wieszakDolny:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=5;
-                IF Present(used) result:=2;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=4;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=4;
+        !sprawdzamy czy robot jest w pozycji domowej (musi byc ale na wszelki wypadek)
+        IF robotInHomePos(FALSE)=FALSE robSpawGoToHome FALSE;
+        !podjezdzamy do pozycji inspekcyjnej palnika
+        WHILE selected<=4 DO
+            selected:=UIMessageBox(\Header:="SPRAWDZENIE PALNIKA"\MsgArray:=msg\BtnArray:=btn\Icon:=iconWarning);
+            IF selected=1 THEN
+                froniusInspectTorch\fullInspect,TRUE;
+                !byl podjazd do pozycji inspekcyjnej = pokazujemy wszystkie opcje
+                msg{5}:="  OK - gdy palnik gotowy";
+                btn:=["SPRAWDZ","","","","OK"];
+            ELSEIF selected=5 THEN
+                !prosimy uzytkownika zeby wpisal swoje uwagi
+                msg:=["Sprawdzenie zakonczone!","","Czy cos wymagalo poprawy?","  - jezeli wszystko bylo ok to nic nie zmieniaj","  - w przeciwnym wypadku wpisz uwagi [max 80 znakow]"];
+                reportCorr:=UIAlphaEntry(\Header:="SPRAWDZENIE PALNIKA"\MsgArray:=msg\Icon:=iconWarning\InitString:=reportCorr);
+                !jezeli uzytkownik nic nie wpisal to znaczy ze wszystko bylo OK
+                IF reportCorr="" reportCorr:="WSZYSTKO OK!";
             ENDIF
-        CASE wieszakGorny:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=10;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=10;
-                IF Present(used) THEN
-                    IF upBracketHeftPoint=TRUE THEN
-                        result:=8;
-                    ELSE
-                        result:=6;
-                    ENDIF
-                ENDIF
-                IF Present(toSave) THEN
-                    IF upBracketHeftPoint=TRUE THEN
-                        result:=8;
-                    ELSE
-                        result:=6;
-                    ENDIF
-                ENDIF
+        ENDWHILE
+        !uaktualniamy status
+        result:=inspectTorchOK;
+        !zapisz uwagi do pliku
+        stationInspectSave inspectTorchOK\saveMessage:=reportCorr;
+
+        RETURN result;
+    ERROR
+        !sprawdzamy czy przypadkiem nie wpisano za dlugiego opisu
+        IF ERRNO=ERR_STRTOOLNG THEN
+            ErrWrite "ERROR::stationInspectTorch","Podales za dlugi opis... Musisz go skrocic do 80 znakow";
+            RETRY;
+        ENDIF
+    ENDFUNC
+
+    !funkcja do sprawdzenia spawarki
+    ! ret: num = status spawarki OK [>0] lub NOK [<0]
+    FUNC num stationInspectFronius()
+        VAR num result:=-1;
+        VAR bool gasCheck:=TRUE;
+        VAR errnum breakVal;
+        VAR string msg{5};
+        VAR string reportCorr:="WSZYSTKO OK!";
+
+        !========================================= pytanie czy w spawarce jest drut 
+        IF UIMessageBox(\Header:="SPRAWDZENIE SPAWARKI [1/5]"\Message:="Czy w spawarce jest wystarczajaca ilosc drutu?"\Buttons:=btnYesNo\Icon:=iconWarning)=resNo THEN
+            !uaktualniamy status
+            result:=-inspectFroniusOK;
+            !zapisz uwagi do pliku
+            stationInspectSave -inspectFroniusOK\saveMessage:="UZUPELNIENIE DRUTU.";
+            !brak odpowiedniej ilosci drutu w spawarce
+            ErrWrite "ERROR::stationInspectFronius","Przygotuj nowa szpule drutu i w razie potrzeby wymien juz teraz."\RL2:="Jak skonczysz wcisnij PLAY!";
+            !dajemy uzytkownikowi mozliwosc zareagowania
+            Stop;
+        ELSE
+            !uaktualniamy status
+            result:=inspectFroniusOK;
+            !zapisz uwagi do pliku
+            stationInspectSave inspectFroniusOK\saveMessage:="DRUT OK!";
+        ENDIF
+        !========================================= pytanie odnosnie sprawdzenia poziomu wody destylowanej do chlodzenia
+        IF UIMessageBox(\Header:="SPRAWDZENIE SPAWARKI [2/5]"\Message:="Czy poziom wody destylowanej OK?"\Buttons:=btnYesNo\Icon:=iconWarning)=resNo THEN
+            !uaktualniamy status
+            result:=-inspectFroniusOK;
+            !zapisz uwagi do pliku
+            stationInspectSave -inspectFroniusOK\saveMessage:="UZUPELNIENIE WODY.";
+            !brak odpowiedniej ilosci drutu w spawarce
+            ErrWrite "ERROR::stationInspectFronius","Uzupelnij wode destylowana do poziomu > minimum!"\RL2:="Jak skonczysz wcisnij PLAY!";
+            !dajemy uzytkownikowi mozliwosc zareagowania
+            Stop;
+        ELSE
+            !uaktualniamy status
+            result:=inspectFroniusOK;
+            !zapisz uwagi do pliku
+            stationInspectSave inspectFroniusOK\saveMessage:="WODA OK!";
+        ENDIF
+        !========================================= pytanie o stan filtru w obiegu wodnym
+        IF UIMessageBox(\Header:="SPRAWDZENIE SPAWARKI [3/5]"\Message:="Czy filtr w obiegu wodnym OK?"\Buttons:=btnYesNo\Icon:=iconWarning)=resNo THEN
+            !uaktualniamy status
+            result:=-inspectFroniusOK;
+            !zapisz uwagi do pliku
+            stationInspectSave -inspectFroniusOK\saveMessage:="CZYSZCZENIE FILTRU.";
+            !brak odpowiedniej ilosci drutu w spawarce
+            ErrWrite "ERROR::stationInspectFronius","Wyczysc filtr obiegu wodnego (z tylu spawarki)!"\RL2:="Jak skonczysz wcisnij PLAY!";
+            !dajemy uzytkownikowi mozliwosc zareagowania
+            Stop;
+        ELSE
+            !uaktualniamy status
+            result:=inspectFroniusOK;
+            !zapisz uwagi do pliku
+            stationInspectSave inspectFroniusOK\saveMessage:="FILTR OK!";
+        ENDIF
+        !========================================= sprawdzenie gazu oslonowego
+        UIMsgBox\Header:="SPRAWDZENIE SPAWARKI [4/5]","Za chwile nastapi sprawdzenie gazu oslonowego."\Buttons:=btnOK
+                                            \Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+        WHILE gasCheck DO
+            Set doFr1GasTest;
+            WaitTime\InPos,0.5;
+            IF RR_torchGasPresent=1 THEN
+                !uaktualniamy status
+                gasCheck:=FALSE;
+                result:=inspectFroniusOK;
+                !zapisz uwagi do pliku
+                stationInspectSave inspectFroniusOK\saveMessage:="GAZ OK!"\saveValue:=RR_torchGasFlow;
+                !wylaczamy gaz
+                Reset doFr1GasTest;
+                !potwierdzamy uzytkownikowi ze gaz OK
+                UIMsgBox\Header:="SPRAWDZENIE SPAWARKI [4/5]","Gaz OK!"\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
+            ELSE
+                !uaktualniamy status
+                gasCheck:=TRUE;
+                result:=-inspectFroniusOK;
+                !zapisz uwagi do pliku
+                stationInspectSave -inspectFroniusOK\saveMessage:="GAZ NOK.";
+                !brak odpowiedniej ilosci drutu w spawarce
+                ErrWrite "ERROR::stationInspectFronius","Brak gazu oslonowego!"\RL2:="Sprawdz reduktor glowny oraz reduktor w spawarce.";
+                !dajemy uzytkownikowi mozliwosc zareagowania
+                Stop;
             ENDIF
-        CASE wieszakMiski1:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=7;
-                IF Present(used) result:=2;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=7;
-                IF Present(used) result:=5;
-                IF Present(toSave) result:=2;
-            ENDIF
-        CASE wieszakMiski2:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=7;
-                IF Present(used) result:=2;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=7;
-                IF Present(used) result:=5;
-                IF Present(toSave) result:=2;
-            ENDIF
-        CASE wieszakMiski3:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=7;
-                IF Present(used) result:=2;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=7;
-                IF Present(used) result:=5;
-                IF Present(toSave) result:=2;
-            ENDIF
-        CASE wieszakMiski4:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=7;
-                IF Present(used) result:=2;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=7;
-                IF Present(used) result:=5;
-                IF Present(toSave) result:=2;
-            ENDIF
-        CASE wieszakMiski5:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=7;
-                IF Present(used) result:=2;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=7;
-                IF Present(used) result:=5;
-                IF Present(toSave) result:=2;
-            ENDIF
-        CASE wieszakMiski6:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=7;
-                IF Present(used) result:=2;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=7;
-                IF Present(used) result:=5;
-                IF Present(toSave) result:=2;
-            ENDIF
-        CASE wieszakSpecjalny:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=8;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=8;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=2;
-            ENDIF
-        CASE wieszakTransportowy:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=7;
-                IF Present(used) result:=2;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=7;
-                IF Present(used) result:=6;
-                IF Present(toSave) result:=6;
-            ENDIF
-        CASE uchwytRuryWej:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=5;
-                IF Present(used) result:=2;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=5;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=4;
-            ENDIF
-        CASE uchwytRuryWyj:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=5;
-                IF Present(used) result:=2;
-                IF Present(toSave) result:=2;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=5;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=4;
-            ENDIF
-        CASE krociecInlet1:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=9;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=4;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=9;
-                IF Present(used) result:=9;
-                IF Present(toSave) result:=9;
-            ENDIF
-        CASE krociecInlet2:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=9;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=4;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=9;
-                IF Present(used) result:=9;
-                IF Present(toSave) result:=9;
-            ENDIF
-        CASE krociecOutlet1:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=9;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=4;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=9;
-                IF Present(used) result:=9;
-                IF Present(toSave) result:=9;
-            ENDIF
-        CASE krociecOutlet2:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=9;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=4;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=9;
-                IF Present(used) result:=9;
-                IF Present(toSave) result:=9;
-            ENDIF
-        CASE krociecCzujka1:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=7;
-                IF Present(used) result:=3;
-                IF Present(toSave) result:=3;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=7;
-                IF Present(used) result:=7;
-                IF Present(toSave) result:=7;
-            ENDIF
-        CASE krociecCzujka2:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=7;
-                IF Present(used) result:=3;
-                IF Present(toSave) result:=3;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=7;
-                IF Present(used) result:=7;
-                IF Present(toSave) result:=7;
-            ENDIF
-        CASE krociecZaslepka:
-            IF Present(heft) THEN
-                !chcemy policzyc punkty sczepow
-                IF Present(provided) result:=9;
-                IF Present(used) result:=4;
-                IF Present(toSave) result:=4;
-            ELSEIF Present(weld) THEN
-                !chcemy policzyc punkty spawania
-                IF Present(provided) result:=9;
-                IF Present(used) result:=9;
-                IF Present(toSave) result:=9;
-            ENDIF
-        ENDTEST
+        ENDWHILE
+        !========================================= pytanie o inne niezgodnosci (polaczenia, itp)
+        msg:=["Czy zauwazyles jakies inne niezgodnosci?","","  - jezeli nie to nic nie zmieniaj","  - w przeciwnym wypadku wpisz uwagi [max 80 znakow]",""];
+        reportCorr:=UIAlphaEntry(\Header:="SPRAWDZENIE SPAWARKI [5/5]"\MsgArray:=msg\Icon:=iconWarning\InitString:=reportCorr);
+        !jezeli uzytkownik nic nie wpisal to znaczy ze wszystko bylo OK
+        IF reportCorr="" reportCorr:="WSZYSTKO OK!";
+        !na koniec wszystkich testow uaktualniamy rezultat
+        result:=inspectFroniusOK;
+        stationInspectSave inspectFroniusOK\saveMessage:=reportCorr;
+        !========================================= informujemy uzytkownika o koncu testow
+        UIMsgBox\Header:="SPRAWDZENIE SPAWARKI","Koniec sprawdzania spawarki!"\Buttons:=btnOK\Icon:=iconInfo\MaxTime:=inspectUserWait\BreakFlag:=breakVal;
 
         RETURN result;
     ENDFUNC
+
+    !procedura do zapisywania wyniku testu oraz ewentualnej wiadomosci i wartosci testu
+    ! arg: testProgress - etap inspekcji procesu jaki chcemy zapisac
+    ! arg: start - flaga informujaca o poczatku inspekcji stanowiska
+    ! arg: stop - flaga informujaca o koncu inspekcji stanowiska
+    ! arg: saveMessage - wiadomosc ktora chcemy umiescic w pliku
+    ! arg: saveValue - wartosc ktora chcemy umiescic w pliku
+    PROC stationInspectSave(num testProgress\switch start|switch stop\string saveMessage\num saveValue)
+        VAR bool continue:=TRUE;
+        VAR bool dirExists:=FALSE;
+        VAR string testName:="";
+        VAR num suffixPos:=0;
+        !do obslugi plikow
+        VAR dir directory;
+        VAR iodev backupFile;
+        VAR string messageString:="Unknown error... Check code...";
+        !informacje odnosnie pliku        
+        VAR string fileName;
+        VAR string dirName;
+
+        !tworzymy foldery
+        !KOL: Symulacja RobotStudio
+        IF RobOS() THEN
+            dirName:="HOME:/STATS/"+CDate()+"/";    
+        ELSE
+            dirName:="E:/Vrobots/robMontazV2/HOME/STATS/"+CDate()+"/";    
+        ENDIF
+        !tworzymy nowa nazwe pliku
+        fileName:="INSPECT.txt";
+        WHILE continue DO
+            !sprawdzamy czy istnieje katalog folderName w HOME
+            IF IsFile(dirName\Directory) THEN
+                !jezeli katalog istnieje to sprawdz czy juz nie istnieje w nim zadany plik
+                dirExists:=TRUE;
+                OpenDir directory,dirName;
+                IF NOT IsFile(dirName+fileName) THEN
+                    !takiego pliku nie ma - nalezy go stworzyc
+                    Open dirName+fileName,backupFile\Write;
+                ELSE
+                    !taki plik juz istnieje - pozycje dopisujemy do niego
+                    Open dirName+fileName,backupFile\Append;
+                ENDIF
+                !sprawdzamy czy chcemy pierw zapisac tytul nowej sekcji
+                IF testProgress>0 THEN
+                    IF inspectLastStatus<>Abs(testProgress) THEN
+                        Write backupFile,stationInspectToStr(testProgress\uppercase\headerStyle);
+                    ENDIF
+                    !zapisujemy pozycje do pliku
+                    IF Present(saveMessage) THEN
+                        Write backupFile,"DETAILS: "+saveMessage;
+                    ENDIF
+                    IF Present(saveValue) THEN
+                        Write backupFile,"VALUE:   "+NumToStr(saveValue,3);
+                    ENDIF
+                ELSE
+                    IF Present(start) THEN
+                        !jezeli to pierwszy test inspekcji to dodajemy czas startowy
+                        Write backupFile,"**************************************************************";
+                        Write backupFile,"***  INSPECTION START ****************************************";
+                        Write backupFile,"***  DATE: "+CDate()+" ****************************************";
+                        Write backupFile,"***  TIME: "+CTime()+"   ****************************************";
+                        Write backupFile,"";
+                    ELSEIF Present(stop) THEN
+                        Write backupFile,"***  INSPECTION STOP  ****************************************";
+                        Write backupFile,"***  DATE: "+CDate()+" ****************************************";
+                        Write backupFile,"***  TIME: "+CTime()+"   ****************************************";
+                        Write backupFile,"**************************************************************";
+                        Write backupFile,"";
+                        Write backupFile,"";
+                    ENDIF
+                    !zapisujemy przeslana wiadomosc 
+                    IF Present(saveMessage) THEN
+                        Write backupFile,saveMessage;
+                    ENDIF
+                ENDIF
+                !uaktualniamy ostatni status
+                inspectLastStatus:=Abs(testProgress);
+                !zamykamy plik i folder
+                Close backupFile;
+                CloseDir directory;
+                !zeby wyjsc z petli glownej
+                continue:=FALSE;
+            ENDIF
+        ENDWHILE
+    ERROR
+        IF ERRNO=ERR_FILEACC THEN
+            IF NOT dirExists THEN
+                !jezeli nie istnieje to stworz taki katalog
+                createDir dirName;
+                continue:=TRUE;
+                SkipWarn;
+                RETRY;
+            ENDIF
+            messageString:="Niepoprawny sposob odwolania sie do pliku/folderu.";
+        ELSEIF ERRNO=ERR_FILEOPEN THEN
+            messageString:="Wskazany plik/folder nie moze zostac otwarty.";
+        ELSEIF ERRNO=ERR_FILNOTFND THEN
+            messageString:="Nie znaleziono pliku/folderu";
+        ELSEIF ERRNO=ERR_FILEEXIST THEN
+            messageString:="Plik/folder juz istnieje w pamieci kontrolera";
+        ENDIF
+        ErrWrite "ERROR::stationInspectSave",messageString;
+        continue:=FALSE;
+    ENDPROC
+
+    !funkcja sluzaca do zamiany obecnego statusu inspekcji na ciag znakow
+    ! ret: string - ciag znakow reprezentujacy obecny status
+    ! arg: inspectStatus - status do zamiany na string
+    ! arg: uppercase - czy wynikowy tekst ma byc tylko duzymi literami
+    ! arg: headerStyle - czy wynikowy string ma byc w formacie naglowka
+    FUNC string stationInspectToStr(num inspectStatus\switch uppercase\switch headerStyle)
+        VAR string result;
+
+        IF inspectStatus=inspectEyeOK THEN
+            result:="ogledziny zewnetrzne";
+        ELSEIF inspectStatus=inspectSensorsOK THEN
+            result:="czujniki";
+        ELSEIF inspectStatus=inspectAirOK THEN
+            result:="sprezone powietrze";
+        ELSEIF inspectStatus=inspectCommOK THEN
+            result:="komunikacja roboty";
+        ELSEIF inspectStatus=inspectZeroPosOK THEN
+            result:="pozycja zerowa";
+        ELSEIF inspectStatus=inspectTorchOK THEN
+            result:="palnik";
+        ELSEIF inspectStatus=inspectFroniusOK THEN
+            result:="spawarka";
+        ELSE
+            result:="nieznane...";
+        ENDIF
+        !sprawdzamy czy tekst ma byc duzymi literami
+        IF Present(uppercase) THEN
+            result:=StrMap(result,STR_LOWER,STR_UPPER);
+        ENDIF
+        !sprawdzamy czy ma byc styl naglowka
+        IF Present(headerStyle) THEN
+            result:=styleHeader(result);
+        ENDIF
+
+        RETURN result;
+    ENDFUNC
+
+    !===========================================
+    !=========== KOMUNIKACJA IPROD =============
+    !===========================================
+
+    !procedura do wysylania informacji do iProda o spawaniu detalu
+    ! arg: detailNo - numer detalu ktory chcemy przeslac do iProda
+    PROC iProdSendWeldDetail(num detailNo)
+        !uzupelniamy tablice do komunikacji z iProdem
+        !numer detalu do spawania
+        cmdToSend{4}:=detailNo-1;
+        !spawanie = 3
+        cmdToSend{3}:=3;
+        !stanowisko prawe = 2
+        cmdToSend{2}:=2;
+        !id rozkazu = 2
+        cmdToSend{1}:=2;
+    ENDPROC
+
+    !procedura do wysylania informacji do iProda o bledzie
+    ! arg: errorNo - numer bledu ktory chcemy wyslac do iProda
+    PROC iProdSendError(num errorNo)
+        !uzupelniamy tablice do komunikacji z iProdem
+        !numer detalu do spawania
+        cmdToSend{4}:=-9000;
+        !numer bledu
+        cmdToSend{3}:=errorNo;
+        !stanowisko prawe = 2
+        cmdToSend{2}:=2;
+        !id rozkazu = 3
+        cmdToSend{1}:=3;
+    ENDPROC
 
     !====================================
     !=========  TESTY  ==================
@@ -1424,7 +2101,7 @@ MODULE GalantSpawRLibrary
         !wybieramy element jaki szukamy
         checkElement:=wieszakMiski3;
         !sprawdzamy czy jest jakis najblizszy detal
-        IF NOT checkSafeDistances(PG32IBC,checkElement,closeElement,angleClosest,posClosest) THEN
+        IF NOT checkSafeDistances(PG32NPG,checkElement,closeElement,angleClosest,posClosest) THEN
             FOR i FROM 1 TO Dim(closeElement,1) DO
                 IF closeElement{i}<>0 THEN
                     TPWrite "============================";
@@ -1438,31 +2115,5 @@ MODULE GalantSpawRLibrary
                 ENDIF
             ENDFOR
         ENDIF
-    ENDPROC
-
-    !procedura do wysylania informacji do iProda o spawaniu detalu
-    PROC iProdSendWeldDetail(num detailNo)
-        !uzupelniamy tablice do komunikacji z iProdem
-        !numer detalu do spawania
-        cmdToSend{4}:=detailNo-1;
-        !spawanie = 3
-        cmdToSend{3}:=3;
-        !stanowisko prawe = 2
-        cmdToSend{2}:=2;
-        !id rozkazu = 2
-        cmdToSend{1}:=2;
-    ENDPROC
-
-    !procedura do wysylania informacji do iProda o bledzie
-    PROC iProdSendError(num errorNo)
-        !uzupelniamy tablice do komunikacji z iProdem
-        !numer detalu do spawania
-        cmdToSend{4}:=-9000;
-        !numer bledu
-        cmdToSend{3}:=errorNo;
-        !stanowisko prawe = 2
-        cmdToSend{2}:=2;
-        !id rozkazu = 3
-        cmdToSend{1}:=3;
     ENDPROC
 ENDMODULE

@@ -1,0 +1,918 @@
+MODULE IMPORTANT(SYSMODULE)
+    !
+    ! Modul zawierajacy definicje wszystkich uladow odniesienia i istotne pozycje w przestrzeni robota
+    ! Po przeniesieniu lini do dzialania powinna wystarczyc jedynie aktualizacja ukladow odniesienia i
+    ! pozycji zdefiniowanych wzgledem ukladu bazowego wobj0
+    !
+    
+    LOCAL CONST orient optimalOrientRotorWobjL:=[0.7071067811865475,0,0,-0.7071067811865475];
+    LOCAL CONST orient optimalOrientRotorWobjR:=[0.7071067811865475,0,0,-0.7071067811865475];
+    
+    !plugPoses3{6}
+    LOCAL PERS robtarget plugPoses31 := [[99.06,152.1,-19.5],[0.999996,3.48196E-05,-4.52175E-05,0.00255211],[0,-1,-2,0],[9E+09,67.1954,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugPoses32 := [[162.97,152.47,-19.5],[0.999996,1.94875E-05,-5.83225E-05,0.00253735],[0,-1,-2,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugPoses33 := [[224.91,153.15,-19.5],[1,-2.1647E-05,-5.80133E-07,7.9684E-06],[0,-1,-2,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugPoses34 := [[37.68,223.05,-19.5],[1,-4.87367E-05,-2.44062E-05,-6.06925E-05],[0,-1,-2,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugPoses35 := [[99.1,222.7,-19.5],[1,-4.87367E-05,-2.44062E-05,-6.06925E-05],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugPoses36 := [[162.32,222.91,-19.5],[1,4.46838E-05,-1.89914E-05,-0.000118119],[0,-1,-2,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    
+    !plugPoses1{1}
+    LOCAL PERS robtarget plugPoses11 := [[37.68,153.05,-19.5],[1,0,0,0],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugPoses12 := [[37.68,153.05,-19.5],[1,0,0,0],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    
+    LOCAL PERS robtarget plugPoses21 := [[37.68,153.05,-19.5],[1,0,0,0],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    
+    !plugSearchPoses{10}
+    LOCAL PERS robtarget plugSearchPoses01 := [[-83.2131,-98.7124,22.2873],[0.650552,-0.677002,0.248672,-0.237936],[0,-2,-1,0],[9E+09,-229.758,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugSearchPoses02 := [[-67.5343,-79.6625,525.624],[0.650073,-0.676624,0.250021,-0.238902],[0,-1,-2,0],[9E+09,-230.427,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugSearchPoses03 := [[-79.0564,-74.2674,527.518],[0.254139,-0.671413,-0.264718,-0.643849],[0,-1,-2,0],[9E+09,-223.092,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugSearchPoses04 := [[-100.286,70.9998,527.718],[0.210617,0.687503,-0.22019,0.659163],[0,-1,-2,0],[9E+09,-144.57,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugSearchPoses05 := [[0,0,0],[1,0,0,0],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugSearchPoses06 := [[0,0,0],[1,0,0,0],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugSearchPoses07 := [[0,0,0],[1,0,0,0],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugSearchPoses08 := [[0,0,0],[1,0,0,0],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugSearchPoses09 := [[0,0,0],[1,0,0,0],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL PERS robtarget plugSearchPoses10 := [[0,0,0],[1,0,0,0],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    
+    !WobjData
+    PERS wobjdata wobjPlugMag:=[FALSE,TRUE,"",[[1194.23,278.482,1076.96],[0.349175075,-0.349853897,0.619216395,-0.610122999]],[[0,0,0],[1,0,0,0]]];
+    PERS wobjdata wobjServceTab:=[FALSE,TRUE,"",[[-658.016,701.664,441.862],[0.498150434,-0.499278737,-0.501195647,0.501367941]],[[0,0,0],[1,0,0,0]]];
+    !tymczasowy magazynek korkow
+    
+    LOCAL PERS robtarget Def_Magazynkorkow_XY0:=[[1209.33,284.89,1072.88],[0.521703,0.16928,0.744913,-0.379835],[0,-2,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+	LOCAL PERS robtarget Def_Magazynkorkow_Xplus:=[[1207.48,285.62,846.31],[0.517339,0.214194,0.713962,-0.420404],[0,-2,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+	LOCAL PERS robtarget Def_Magazynkorkow_Yplus:=[[1090.47,76.63,1072.73],[0.5301,0.236142,0.707015,-0.404179],[0,-2,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS jointtarget Dojazdowy_MagazynKorkow:=[[54.0534,-4.00404,28.2142,-129.458,96.5294,96.0199],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS wobjdata wobjMagazynKorkow:=[FALSE,TRUE,"",[[1209.33,284.892,1072.43],[0.181667,-0.680379,0.180945,0.686543]],[[0,0,0],[1,0,0,0]]];
+    
+    !pozycje na obrotniku PKW
+    CONST robtarget armIns01:=[[999.05,-553.93,305.45],[0.185381,-0.00279801,0.974081,0.129581],[-1,1,-2,0],[90.0107,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armIns02:=[[1098.64,-305.54,305.78],[0.185409,-0.00276985,0.974075,0.129593],[-1,1,-2,0],[44.9702,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armIns03:=[[1344.62,-200.19,305.97],[0.213791,-0.0175006,0.974731,0.062344],[-1,1,-2,0],[-0.00207641,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armIns04:=[[1593.55,-299.48,306.09],[0.254597,0.159919,0.936043,0.18284],[-1,1,-2,0],[-45.0149,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armIns05:=[[1698.92,-545.41,306.07],[0.254597,0.159921,0.936042,0.182842],[-1,1,-2,0],[-89.9582,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armIns06:=[[1599.38,-794.15,305.45],[0.305478,0.138842,0.941703,0.0245322],[-1,1,-2,0],[-134.995,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armIns07:=[[1353.26,-899.51,305.12],[0.305479,0.138809,0.941707,0.0245329],[-1,1,-2,0],[179.975,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armIns08:=[[1104.78,-800.27,305.06],[0.305503,0.138814,0.941699,0.0245441],[-1,1,-2,0],[135.029,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armInsZ:=[[1348.92,-550.01,359.91],[0.227131,0.0178846,0.973696,-0.00261846],[-1,1,-2,0],[179.953,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST wobjdata wobjPKWPorg:=[FALSE,TRUE,"",[[1326.41,548.548,291.867],[0.00377687,-0.000451168,0.000567504,0.999993]],[[0,0,0],[1,0,0,0]]];
+    PERS wobjdata wobjPKWPnew:=[FALSE,TRUE,"",[[1337.71,550.466,278.614],[0.707107,8.9521E-05,-0.000442881,0.707107]],[[0,0,0],[1,0,0,0]]];
+    !PERS wobjdata wobjPKWPnew:=[FALSE,TRUE,"",[[1337.7,550.456,291.614],[0.0181308,0.000256648,0.000371873,-0.999836]],[[0,0,0],[1,0,0,0]]];
+    CONST jointtarget dojazdPKW:=[[-46.0163,-25.3431,36.338,39.8277,53.4074,-64.488],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    
+    !pozycje na obrotniku PKWP (zmiana puntu zerowego obrotnika o +120deg)
+    CONST robtarget armCoat01:=[[988.30,537.78,291.43],[0.116189,0.0208644,0.992946,-0.0110873],[0,-1,1,0],[9E+09,-89.9996,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armCoat02:=[[1044.29,740.52,291.96],[0.116216,0.0208661,0.992943,-0.0110841],[0,-1,1,0],[9E+09,-124.998,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armCoat03:=[[1264.84,892.24,291.82],[0.177027,0.00742287,0.982437,0.0585191],[0,-2,1,0],[9E+09,-170,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armCoat04:=[[1528.10,843.65,291.77],[0.177069,0.0073855,0.982433,0.0584565],[0,-1,1,0],[9E+09,144.999,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armCoat05:=[[1684.89,592.94,291.71],[0.248683,0.0337763,0.962192,-0.105841],[0,-2,1,0],[9E+09,95,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armCoat06:=[[1613.54,335.61,291.36],[0.288994,0.0337695,0.948035,-0.128729],[0,-2,1,0],[9E+09,50.0005,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armCoat07:=[[1380.90,203.90,291.38],[0.292842,0.0667218,0.922561,-0.242224],[0,-2,1,0],[9E+09,5.00038,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armCoat08:=[[1122.50,274.60,291.50],[0.199399,0.0897941,0.948239,-0.230261],[0,-2,1,0],[9E+09,-40.0001,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget armCoatZ:=[[1337.72,549.78,359.99],[0.199425,0.0897727,0.948239,-0.230246],[0,-1,1,0],[9E+09,0.000199116,9E+09,9E+09,9E+09,9E+09]];
+    CONST wobjdata wobjPKWorg:=[FALSE,TRUE,"",[[1321.03,-551.456,307.519],[0.0268337,0.000117827,-0.000189071,-0.99964]],[[0,0,0],[1,0,0,0]]];
+    PERS wobjdata wobjPKWnew:=[FALSE,TRUE,"",[[1349.04,-549.797,290.624],[0.707107,0.000630253,0.000289966,-0.707107]],[[0,0,0],[1,0,0,0]]];
+    CONST jointtarget dojazdPKWP:=[[29.3759,-38.7386,61.6254,-16.2486,17.0069,17.6606],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    
+    ! stolik kontrolny glowicy (wzgledem wobj: wobj0)
+    PERS robtarget Def_StolikKontrolny_Xplus:=[[-641.833511032,944.01121166,441.95],[0.50001953,0.001746455,-0.86601179,0.000999541],[1,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget Def_StolikKontrolny_XY0:=[[-640.730558037,694.273627195,440.9],[0.532859149,-0.108413078,-0.836383204,-0.069071469],[1,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget Def_StolikKontrolny_Yplus:=[[-641.037101684,695.902409253,47.15],[0.603727104,-0.101933448,-0.786766688,-0.078238958],[1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS jointtarget Dojazdowy_StolikKontrolny:=[[92.8574,-21.5652,40.2029,16.0263,71.0384,87.7623],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    
+    ! testowe punkty w ukladzie odniesienia
+    PERS robtarget Def2_StolikKontrolny_Xplus:=[[249.768, 3.05176E-05, 0],[0.684412,-0.183007,-0.183505,-0.681479],[1,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget Def2_StolikKontrolny_XY0:=[[0.0253906, 3.05176E-05, 0],[0.705733,-0.242111,-0.0622249,-0.662912],[1,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget Def2_StolikKontrolny_Yplus:=[[0, 400, 0],[0.707096,-0.182978,-1.37407E-05,-0.683034],[1,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    
+    
+    !wobj tymczasowy do testow
+    !PERS wobjdata StolikKontrolny:=[FALSE,TRUE,"",[[-680,704.016,452.77],[0.498995,-0.498995,-0.501003,0.501003]],[[0,0,0],[1,0,0,0]]];
+    PERS wobjdata wobjStolikKontrolny:=[FALSE,TRUE,"",[[-640.73,694.248,440.9],[0.500136,-0.49765,-0.50196,0.500244]],[[0,0,0],[1,0,0,0]]];
+    
+    !wobj plytki do strzalow -> POKI CO W GLOBALU
+	PERS wobjdata focalPlateWobj:=[FALSE,TRUE,"",[[-514.4,822,299],[0.499953,-0.497289,-0.495122,0.507548]],[[0,0,0],[1,0,0,0]]];
+    PERS wobjdata wobjCzyszczenieFajki:=[FALSE,TRUE,"",[[-315.926,844.549,-134.337],[0.00130714,-0.011344,0.00405491,-0.999927]],[[0,0,0],[1,0,0,0]]];
+!    TASK PERS wobjdata orientacjaOptymalna:=[FALSE,TRUE,"",[[1000,0,0],[0.707107,0,0,0.707107]],[[0,0,0],[1,0,0,0]]];
+!    TASK PERS wobjdata orientacjaOptymalna_Plaszc:=[FALSE,TRUE,"",[[1000,500,0],[0.707107,0,0,0.707107]],[[0,0,0],[1,0,0,0]]];
+!    TASK PERS wobjdata orientacjaOptymalna_Pkw:=[FALSE,TRUE,"",[[1000,-600,0],[0.707107,0,0,-0.707107]],[[0,0,0],[1,0,0,0]]];
+    CONST orient orientOpt:=[0.707106781,0,0,0.707106781];
+    CONST orient orientOptRotPlaszcz:=[0.707106781,0,0,0.707106781];
+    CONST orient orientOptRotPKW:=[0.707106781,0,0,-0.707106781];
+    !KOL: Definicje ukladow odniesienia dla obrotnikow ktore wykozystywane sa w AVS
+    TASK PERS wobjdata WOBJ_wkladAVSnew:=[FALSE,FALSE,"M7DM1",[[0,0,0],[1,0,0,0]],[[0,0,110],[1,0,0,0]]];
+    TASK PERS wobjdata WOBJ_plaszczAVSnew:=[FALSE,FALSE,"M8DM1",[[0,0,0],[1,0,0,0]],[[0,0,379],[1,0,0,0]]];
+    
+    ! obliczamy wobj z robTarget na podstawie 3 punktow (nie korzystac z tej funkcji)
+    LOCAL PROC calc_wobjdata(inout robtarget pWobj_U_PointX1, inout robtarget pWobj_U_PointX2,
+        inout robtarget pWobj_U_PointY1, inout wobjData uklad \wobjdata wobjRefPoint)
+        
+        VAR robtarget x1;
+        VAR robtarget x2;
+        VAR robtarget y1;
+        VAR pose temp1;
+        VAR pose temp2;
+        
+        x1:=pWobj_U_PointX1;
+        x2:=pWobj_U_PointX2;
+        y1:=pWobj_U_PointY1;
+        !
+        !gdy mamy podany uklad odniesienia dla punktow to przeliczamy je do wobj0
+        IF Present(wobjRefPoint) THEN
+            temp1.trans:=pWobj_U_PointX1.trans;
+            temp1.rot:=pWobj_U_PointX1.rot;
+            temp2:=PoseMult(wobjRefPoint.uframe,temp1);   
+            x1.trans:=temp2.trans;
+            x1.rot:=temp2.rot;
+            !
+            temp1.trans:=pWobj_U_PointX2.trans;
+            temp1.rot:=pWobj_U_PointX2.rot;
+            temp2:=PoseMult(wobjRefPoint.uframe,temp1);   
+            x2.trans:=temp2.trans;
+            x2.rot:=temp2.rot;
+            !
+            temp1.trans:=pWobj_U_PointY1.trans;
+            temp1.rot:=pWobj_U_PointY1.rot;
+            temp2:=PoseMult(wobjRefPoint.uframe,temp1);   
+            y1.trans:=temp2.trans;
+            y1.rot:=temp2.rot;
+            !
+        ENDIF
+        ! wyznaczamy frame
+        TPWrite "frame brfore = "\Pos:=uklad.uframe.trans;
+        uklad.uframe:=DefFrame(x1, x2, y1 \Origin:=3);
+        TPWrite "frame after  = "\Pos:=uklad.uframe.trans;
+        !
+        
+    ENDPROC
+    
+    ! przlicza robtarget z wobj0 do zadanego wobj
+    LOCAL FUNC robtarget moveTargetToWobj(robtarget rt, wobjdata newWobj)
+        VAR pose target;
+        VAR pose resultPose;
+        VAR robtarget result;
+        
+        result:=rt;
+        target.trans:=rt.trans;
+        target.rot:=rt.rot;
+        resultPose:=PoseMult(PoseInv(newWobj.uframe),target);
+        result.trans:=resultPose.trans;
+        result.rot:=resultPose.rot;
+        RETURN result;
+    ENDFUNC
+    
+    ! definiowanie ukladu odniesienia z podjazdami do punktow
+    PROC def_wobjdata(string nazwa, pers tooldata szpikulecCal, inout robtarget pWobj_U_PointX1,
+        inout robtarget pWobj_U_PointX2, inout robtarget pWobj_U_PointY1, inout jointtarget dojazdowy,
+        num zapas, num dojazdPowoli,
+        inout wobjData uklad \switch aktualizuj |switch zapytaj )
+        
+        VAR pose frame;
+        VAR bool zapisDanych;
+        VAR buttondata odpBtn;
+        
+        ! sprawdzamy warunki uruchomienia procedury
+        WHILE OpMode()<>OP_MAN_PROG AND RobOS() DO
+            UIMsgBox \Header:="Wyznaczenie ukladu dla "+nazwa,"Procedura dziala tylko w trybie MANUAL"\MsgLine2:="By kontynuowac przelacz robota w tryb MANUAL"\Buttons:=btnOK\Icon:=iconWarning;
+        ENDWHILE
+        
+        ! sprawdzanie narzedzia dla robBig
+        !WHILE (NOT testTool(ID_calibTool)) AND RobOS() DO
+        !    UIMsgBox \Header:="Wyznaczenie ukladu dla "+nazwa,"Na robocie jest zle narzedzie."\MsgLine2:="Przed wznowieniem zmien narzedzie."\Buttons:=btnOK\Icon:=iconWarning;    
+        !ENDWHILE
+            
+        MoveAbsJ dojazdowy, v200, z50, szpikulecCal;
+        ! punkt X1
+        MoveJ RelTool(pWobj_U_PointX1,0,0,-zapas),v200,fine, szpikulecCal;
+        MoveL RelTool(pWobj_U_PointX1,0,0,-dojazdPowoli),v50,fine, szpikulecCal;
+        IF RobOS() Stop;
+        MoveL pWobj_U_PointX1,v5,fine, szpikulecCal;
+        MoveL RelTool(pWobj_U_PointX1,0,0,-zapas),v50,fine, szpikulecCal;
+        
+        ! punkt X2
+        MoveJ RelTool(pWobj_U_PointX2,0,0,-zapas),v200,fine, szpikulecCal;
+        MoveL RelTool(pWobj_U_PointX2,0,0,-dojazdPowoli),v50,fine, szpikulecCal;    
+        IF RobOS() Stop;
+        MoveL pWobj_U_PointX2,v5,fine, szpikulecCal;
+        MoveL RelTool(pWobj_U_PointX2,0,0,-zapas),v50,fine, szpikulecCal;
+        MoveL RelTool(pWobj_U_PointX1,0,0,-zapas),v50,fine, szpikulecCal;
+        
+        ! punkt Y1
+        MoveJ RelTool(pWobj_U_PointY1,0,0,-zapas),v200,fine, szpikulecCal;
+        MoveL RelTool(pWobj_U_PointY1,0,0,-dojazdPowoli),v50,fine, szpikulecCal;
+        IF RobOS() Stop;
+        MoveL pWobj_U_PointY1,v5,fine, szpikulecCal;
+        MoveL RelTool(pWobj_U_PointY1,0,0,-zapas),v50,fine, szpikulecCal;
+        MoveAbsJ dojazdowy, v200, z50, szpikulecCal;
+        
+        !
+        frame:=DefFrame(pWobj_U_PointX1, pWobj_U_PointX2, pWobj_U_PointY1 \Origin:=3);
+        !
+        ! wyznaczamy wobj
+        IF Present(aktualizuj) AND (NOT Present(zapytaj)) THEN
+            uklad.uframe:=frame;
+            !newWobjKal2U.uframe:=PoseMult(Kal2LOnaSK.uframe,frame);  
+            ErrWrite \I,"Wybrano opcje aktualizacji WObj "+ nazwa,"PROC:cal_wobjdata:/aktualizuj";
+            ! zapis wobj do pliku
+            zapisDanych:=backupData(nazwa\Wobj:=uklad);
+        ENDIF     
+        IF Present(zapytaj) THEN
+            UIMsgBox \Header:="wyznaczono WObj","Czy zaktualizowac uklad odniesienia "+ nazwa
+                \MsgLine2:="  x = "+NumToStr(frame.trans.x,2)
+                \MsgLine3:="  y = "+NumToStr(frame.trans.y,2)
+                \MsgLine4:="  z = "+NumToStr(frame.trans.z,2)
+                \Buttons:=btnYesNo \Icon:=iconInfo \Result:=odpBtn;  
+            IF odpBtn=resYes THEN
+                uklad.uframe:=frame;
+                !newWobjKal2U.uframe:=PoseMult(Kal2LOnaSK.uframe,frame);   
+                ErrWrite \I,"Operator wybral opcje aktualizacji ukladu ukladu","PROC:cal_wobjdata:/zapytaj"; 
+                ! zapis wobj do pliku
+                zapisDanych:=backupData(nazwa\Wobj:=uklad);
+            ENDIF
+        ELSE    
+            !po
+        ENDIF
+        
+        
+    ENDPROC  
+    
+    
+    
+    PROC UPDATE_IMPORTANT()
+        plugPoses1X;
+        plugPoses2X;
+        plugSearchPosesX;
+    ENDPROC
+    
+    PROC plugPoses1X()
+        plugPoses11:=plugPoses_s1{1};
+        plugPoses12:=plugPoses_s1{2};
+    ENDPROC
+    
+    PROC plugPoses2X()
+        plugPoses21:=plugPoses_s2{1};
+    ENDPROC
+    
+    PROC plugPoses3X()
+        plugPoses31:=plugPoses_s3{1};
+        plugPoses32:=plugPoses_s3{2};
+        plugPoses33:=plugPoses_s3{3};
+        plugPoses34:=plugPoses_s3{4};
+        plugPoses35:=plugPoses_s3{5};
+        plugPoses36:=plugPoses_s3{6};
+    ENDPROC
+    
+    PROC plugSearchPosesX()
+        plugSearchPoses01:=plugSearchPoses{1};
+        plugSearchPoses02:=plugSearchPoses{2};
+        plugSearchPoses03:=plugSearchPoses{3};
+        plugSearchPoses04:=plugSearchPoses{4};
+        plugSearchPoses05:=plugSearchPoses{5};
+        plugSearchPoses06:=plugSearchPoses{6};
+        plugSearchPoses07:=plugSearchPoses{7};
+        plugSearchPoses08:=plugSearchPoses{8};
+        plugSearchPoses09:=plugSearchPoses{9};
+        plugSearchPoses10:=plugSearchPoses{10};
+    ENDPROC
+        
+    LOCAL PROC move_testPlugPose()
+        gripperToolMod:=gripperTool;
+        MoveL testPlugPose,v5,fine,gripperToolMod\WObj:=wobjPlugPlate; 
+    ENDPROC
+    
+    LOCAL PROC move_plugPoses1()
+        gripperToolMod:=KorektaChwytaka(gripperTool, plugLengths{1});
+        MoveL plugPoses11,v5,fine,gripperToolMod\WObj:=wobjPlugPlate;    
+    ENDPROC    
+    
+    LOCAL PROC move_plugPoses2()
+        gripperToolMod:=KorektaChwytaka(gripperTool, plugLengths{2});
+        MoveL plugPoses21,v5,fine,gripperToolMod\WObj:=wobjPlugPlate;
+    ENDPROC
+    
+     LOCAL PROC move_plugPoses3()
+        gripperToolMod:=KorektaChwytaka(gripperTool, plugLengths{3});
+        MoveL plugPoses31,v5,fine,gripperToolMod\WObj:=wobjPlugPlate;
+        MoveL plugPoses32,v5,fine,gripperToolMod\WObj:=wobjPlugPlate;
+        MoveL plugPoses33,v5,fine,gripperToolMod\WObj:=wobjPlugPlate;
+        MoveL plugPoses34,v5,fine,gripperToolMod\WObj:=wObjPlugPlate;
+        MoveL plugPoses35,v5,fine,gripperToolMod\WObj:=wObjPlugPlate;
+    ENDPROC   
+    
+    LOCAL PROC move_plugSearchPoses1()
+        gripperToolMod:=KorektaChwytaka(gripperTool, plugLengths{1});
+        MoveL plugSearchPoses01,v5,fine,gripperToolMod\WObj:=wObjPlugPlate;  
+        MoveL plugSearchPoses02,v5,fine,gripperToolMod\WObj:=wObjPlugPlate;  
+        MoveL plugSearchPoses03,v5,fine,gripperToolMod\WObj:=wObjPlugPlate;
+        MoveL plugSearchPoses04,v5,fine,gripperToolMod\WObj:=wObjPlugPlate;
+    ENDPROC 
+    
+    PROC move_stolikKontrolny()
+        
+        WHILE ((NOT OpMode()=OP_MAN_PROG) AND RobOS()) DO
+            TPErase;
+            TPWrite "Zzly tryb robota! Wymagany MANUAL";
+            TPWrite "Zmien tryb pracy na MANUAL i wcisnij START!";
+            STOP;    
+        ENDWHILE
+        
+        MoveJ servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+        !
+        MoveL RelTool(nozzlePresentCheck,0,0,-50),v50,z20,laserCameraTool\WObj:=wobj0;  
+        MoveL nozzlePresentCheck,v5,fine,laserCameraTool\WObj:=wobj0;   
+        MoveL RelTool(nozzlePresentCheck,0,0,-50),v50,z20,laserCameraTool\WObj:=wobj0;  
+        !
+        MoveL RelTool(orientPoint,0,0,-50),v50,z20,laserCameraTool\WObj:=focalPlateWobj;  
+        Set RSL_PilotLaserOn;
+        Set RSH_lineSensor;
+        MoveL orientPoint,v5,fine,laserCameraTool\WObj:=focalPlateWobj;  
+        WaitTime 0.5;
+        Reset RSH_lineSensor;
+        WaitTime 0.5;
+        Set RSH_lineSensor;
+        WaitTime 0.5;
+        Reset RSH_lineSensor;
+        Reset RSL_PilotLaserOn;
+        !
+        MoveL RelTool(orientPoint,0,0,-50),v50,z20,laserCameraTool\WObj:=focalPlateWobj;
+        Set RSL_PilotLaserOn;
+        WaitTime 1;
+        Reset RSL_PilotLaserOn;
+        !
+        MoveL paperShotPos,v50,fine,laserTool\WObj:=wobjStolikKontrolny; 
+        MoveL powerCheckBasePos,v50,fine,laserTool\WObj:=wobj0;
+        Set RSL_PilotLaserOn;
+        WaitTime 1;
+        Reset RSL_PilotLaserOn;
+        !
+        MoveL servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+        Stop;
+    ENDPROC
+    
+    LOCAL PROC move_nozzleCleaning()
+        MoveL nozzleCleaningPos4,v5,fine,laserTool\WObj:=wobjCzyszczenieFajki;
+        MoveL nozzleCleaningPos1,v5,fine,laserTool\WObj:=wobjCzyszczenieFajki;
+        MoveL nozzleCleaningPos2,v5,fine,laserTool\WObj:=wobjCzyszczenieFajki;
+        MoveL nozzleCleaningPos3,v5,fine,laserTool\WObj:=wobjCzyszczenieFajki;
+        MoveL nozzleCleaningPos2,v5,fine,laserTool\WObj:=wobjCzyszczenieFajki;
+        MoveL nozzleCleaningPos1,v5,fine,laserTool\WObj:=wobjCzyszczenieFajki;
+        MoveL nozzleCleaningPos4,v5,fine,laserTool\WObj:=wobjCzyszczenieFajki;
+    ENDPROC
+    
+    LOCAL PROC move_wireFeeder()
+        gripperToolMod:=gripperTool;
+        MoveL wireFeederOnStand,v5,fine,gripperToolMod\WObj:=wobj0;    
+        MoveL wireFeederOnStand1,v5,fine,gripperToolMod\WObj:=wobj0;    
+        MoveL wireFeederOnStand2,v5,fine,gripperToolMod\WObj:=wobj0;   
+        MoveL wireFeederPhotoTestDown,v5,fine,gripperToolMod\WObj:=wobj0;   
+        MoveL wireFeederPhotoTestUp,v5,fine,gripperToolMod\WObj:=wobj0;
+    ENDPROC
+    
+    LOCAL PROC move_EPS_Sync()
+        MoveL Offs(nozzlePresentCheck,200,0,0),v200,z20,laserCameraTool\WObj:=wobj0;
+        MoveL nozzlePresentCheck,v5,fine,laserCameraTool\WObj:=wobj0;
+        WaitTime \InPos, 0.1;
+        Set EPS_SYNC_ON;
+        WaitTime 2;
+        Reset EPS_SYNC_ON;
+        MoveL Offs(nozzlePresentCheck,200,0,0),v200,z20,laserCameraTool\WObj:=wobj0;
+        
+        ! w ukladzie stolika serwisowego (wobjServceTab)
+        !KOL:wobjServceTab
+!        MoveL Offs(nozzlePresentCheck,0,0,-200),v200,z10,laserCameraTool\WObj:=wobjServceTab;
+!        MoveL Offs(nozzlePresentCheck,0,0,-50),v100,z10,laserCameraTool\WObj:=wobjServceTab;
+!        MoveL nozzlePresentCheck,v50,fine,laserCameraTool\WObj:=wobjServceTab;
+!        WaitTime 2;
+!        MoveL Offs(nozzlePresentCheck,0,0,-200),v200,z20,laserCameraTool\WObj:=wobjServceTab;
+    ENDPROC
+    
+    PROC aTest_move_PKW()
+        !UWAGA: Przed uruchomieniem testu drzwi przesówne powinny byc prawidlowo ustawione.
+        robMoveHome;
+        ! sprawdzenie, czy drzwi nie blokuja przejazdu
+        waitDoorsFree\ins;
+        !
+        move_PKW;
+        !
+    ENDPROC
+    
+    PROC aTest_move_PKWP()
+        !UWAGA: Przed uruchomieniem testu drzwi przesówne powinny byc prawidlowo ustawione.    
+        robMoveHome;
+        ! sprawdzenie, czy drzwi nie blokuja przejazdu
+        waitDoorsFree \coat;
+        !
+        move_PKWP;
+        !
+    ENDPROC
+    
+    LOCAL PROC move_PKW()
+        CONST num daleko:=50;
+        CONST num blisko:=10;
+        CONST bool dokladnie:=FALSE;
+        
+!        DeactAllUnit;
+!        Stop;
+!        ! poprawic nastepna pozycje !
+!        Stop;
+!        ! obracajac robota tylko po pierwszej osi wzgledem pozycji domowej
+!        MoveAbsJ dojazdPKW \NoEOffs, v100, z0, Szpikulec;
+        
+!        MoveJ RelTool(armInsZ,0,0,-(daleko*2)),v100,z0,Szpikulec\WObj:=wobj0;
+!        !
+        DeactAllUnit;
+        MoveAbsJ dojazdPKW \NoEOffs, v100, z0, Szpikulec;
+        
+        ConfL\Off;
+        ConfJ\Off;
+        MoveJ RelTool(armIns01,0,0,-(daleko*2)),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        ActUnit M7DM1;
+        !
+        
+        MoveL RelTool(armIns01,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns01,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armIns01,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns01,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armIns02,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns02,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armIns02,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns02,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armIns03,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns03,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armIns03,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns03,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armIns04,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns04,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armIns04,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns04,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armIns05,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns05,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armIns05,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns05,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armIns06,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns06,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armIns06,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns06,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armIns07,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns07,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armIns07,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns07,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armIns08,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns08,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armIns08,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armIns08,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armInsZ,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armInsZ,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armInsZ,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armInsZ,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armInsZ,0,0,-(daleko*2)),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        DeactAllUnit;
+        MoveAbsJ dojazdPKW \NoEOffs, v100, z0, Szpikulec;
+        !
+        RestoreActUnit;
+    ENDPROC
+    
+    LOCAL PROC move_PKWP()
+        CONST num daleko:=50;
+        CONST num blisko:=10;
+        CONST bool dokladnie:=FALSE;
+        
+        DeactAllUnit;
+        MoveAbsJ dojazdPKWP \NoEOffs, v100, z0, Szpikulec;
+        
+        ConfL\Off;
+        ConfJ\Off;
+        MoveJ RelTool(armCoat01,0,0,-(daleko*2)),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        ActUnit M8DM1;
+        !
+        MoveL RelTool(armCoat01,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat01,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armCoat01,v5,fine,Szpikulec\WObj:=wobj0;    
+        MoveL RelTool(armCoat01,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armCoat02,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat02,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armCoat02,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat02,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armCoat03,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat03,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armCoat03,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat03,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armCoat04,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat04,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armCoat04,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat04,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armCoat05,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat05,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armCoat05,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat05,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armCoat06,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat06,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armCoat06,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat06,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armCoat07,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat07,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armCoat07,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat07,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armCoat08,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat08,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;
+        IF dokladnie MoveL armCoat08,v5,fine,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoat08,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armCoatZ,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        MoveL RelTool(armCoatZ,0,0,-blisko),v50,z0,Szpikulec\WObj:=wobj0;  
+        IF dokladnie MoveL armCoatZ,v5,fine,Szpikulec\WObj:=wobj0;  
+        MoveL RelTool(armCoatZ,0,0,-daleko),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        MoveL RelTool(armCoat01,0,0,-(daleko*2)),v100,z0,Szpikulec\WObj:=wobj0;
+        !
+        DeactAllUnit;        
+        MoveAbsJ dojazdPKWP \NoEOffs, v100, z0, Szpikulec;
+        !
+        RestoreActUnit;
+        
+    ENDPROC
+    
+    LOCAL FUNC pose calcDeltaWobj(wobjdata orgWobj,wobjdata newWobj)
+        VAR pose org;
+        VAR pose new;
+        VAR pose delta;
+        VAR pos deltaAngle;
+
+        org:=orgWobj.uframe;
+        new:=newWobj.uframe;
+        delta:=PoseMult(PoseInv(org),new);
+        RETURN delta;
+    ENDFUNC
+    
+    LOCAL PROC logDelta(pose delta \string wobjName)
+        VAR pos deltaAngle;
+        deltaAngle.x:=EulerZYX(\X,delta.rot);
+        deltaAngle.y:=EulerZYX(\Y,delta.rot);
+        deltaAngle.z:=EulerZYX(\Z,delta.rot);
+        ErrWrite\I,"Porownanie Wobj","PROC:logDelta:"
+        \RL2:="       Delta x,y,z "+NumToStr(delta.trans.x,2)+", "+NumToStr(delta.trans.y,2)+", "+NumToStr(delta.trans.z,2)
+        \RL3:=" delta angle x,y,z "+NumToStr(deltaAngle.x,1)+", "+NumToStr(deltaAngle.y,1)+", "+NumToStr(deltaAngle.z,1);
+    ENDPROC
+    
+    LOCAL FUNC wobjdata DokrecWobjZ(wobjdata wobj,orient optimalOrientRotorWobj)
+        VAR pose pW;
+        VAR pose pO:=[[0,0,0],[1,0,0,0]];
+        VAR pose delta;
+        VAR pose kor;
+        VAR pose poKor;
+        VAR wobjdata result;
+
+        pW:=wobj.uframe;
+        pO.rot:=optimalOrientRotorWobj;
+        delta:=PoseMult(PoseInv(pO),pW);
+
+        kor.rot:=OrientZYX(-EulerZYX(\Z,delta.rot),0,0);
+        poKor:=PoseMult(wobj.uframe,kor);
+
+        result:=wobj;
+        result.uframe:=poKor;
+
+        RETURN result;
+
+    ENDFUNC
+    
+    
+    PROC logWobj(wobjdata wobj \string addCom)
+        VAR string add:="";
+        
+        IF Present(addCom) THEN
+            add:=" ("+addCom+")";    
+        ENDIF
+        ErrWrite \I,"LOG WOBJ: "+ArgName(wobj),""
+        \RL2:=""+NumToStr(wobj.uframe.trans.x,1);
+    ENDPROC
+    
+    
+    !procedura wyliczajaca wobj skalibrowanego obrotnika
+    ! ret: bool = czy udalo sie poprawie wyliczyc frame wobj (TRUE) lub nie (FALSE)
+    ! arg: wobj - workobject ktorego frame wyliczamy
+    FUNC bool calibRotatorCalcFrame(INOUT wobjdata wobj, robtarget manualCalibPoints{*}, robtarget manualCalibPointZ \orient optimalOrientRotorWobj)
+        VAR bool result:=FALSE;
+        VAR num maxError:=0;
+        VAR num meanError:=0;
+        VAR num calibPts:=0;
+        VAR wobjdata wobjOrg;
+        VAR pose deltaWobj;
+
+        ! sprawdzamy ile mamy punktów
+        calibPts:=Dim(manualCalibPoints,1);
+        ! zapamietujemy orginalny wobj
+        wobjOrg:=wobj;
+        !obliczenie osi obrotu pozycjonera z wykorzystaniem funkcji
+        !CalcRotAxFrameZ (TargetList PointsUsedFromTarget PositiveZPoint MaxErr MeanErr)     
+        wobj.uframe:=CalcRotAxFrameZ(manualCalibPoints,calibPts,manualCalibPointZ,maxError,meanError);
+        !jezeli tu jestesmy to znaczy ze nie bylo bledu
+        result:=TRUE;
+       
+        ! logujemy wyniki
+        ErrWrite \I, "Wyliczono wobj frame dla "+ArgName(wobj),"FUNC:calibRotatorCalcFrame: Wyliczono wobj obrotnika z punktow"
+        \RL2:="   maxError = "+NumToStr(maxError,0)
+        \RL3:="   meanErro = "+NumToStr(meanError,0);
+        ! obliczamy zmiany
+        deltaWobj:=calcDeltaWobj(wobjOrg,wobj);
+        ! logujemy zmiany
+        logDelta deltaWobj \wobjName:=ArgName(wobj);
+        
+        ! dokrecanie
+        IF Present(optimalOrientRotorWobj) THEN
+            wobj:=DokrecWobjZ(wobj, optimalOrientRotorWobj);
+            ! logujemy zmiany po dkoreceniu
+            logDelta deltaWobj \wobjName:=ArgName(wobj)+"(dokrecony)";
+        ENDIF
+
+        RETURN result;
+    ERROR
+        IF errno=ERR_FRAME THEN
+            ErrWrite\W,"ERROR.rotAxisCalibration","Nie moge wyznaczyc wobj z recznie zebranych punktow.";
+        ELSE
+            ErrWrite\W,"ERROR.rotAxisCalibration","Nieznany blad - NR "+NumToStr(errno,0);
+        ENDIF
+        RETURN result;
+    ENDFUNC
+    
+        ! Procedura podjazdu do pozycji kalibracji stolika
+    LOCAL PROC wyznaczStolik()
+        MoveAbsJ [[92.8574,-21.5652,40.2029,16.0263,71.0384,87.7623],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]]\NoEOffs, v100, z100, Szpikulec;
+        MoveL RelTool(Def_StolikKontrolny_Xplus,0,0,-150),v100,z1, Szpikulec \WObj:=wobj0;
+        MoveL Def_StolikKontrolny_Xplus,v50,fine,Szpikulec\WObj:=wobj0;
+        WaitTime \InPos,1;
+        MoveL RelTool(Def_StolikKontrolny_Xplus,0,0,-50),v100,z1, Szpikulec \WObj:=wobj0;
+        !
+        MoveL RelTool(Def_StolikKontrolny_XY0,0,0,-50),v100,z1, Szpikulec \WObj:=wobj0;
+        MoveL Def_StolikKontrolny_XY0,v50,fine,Szpikulec\WObj:=wobj0;
+        WaitTime \InPos,1;
+        MoveL RelTool(Def_StolikKontrolny_XY0,0,0,-50),v100,z1, Szpikulec \WObj:=wobj0;
+        !
+        MoveL RelTool(Def_StolikKontrolny_Yplus,0,0,-50),v100,z1, Szpikulec \WObj:=wobj0;
+        MoveL Def_StolikKontrolny_Yplus,v50,fine,Szpikulec\WObj:=wobj0;
+        WaitTime \InPos,1;
+        MoveL RelTool(Def_StolikKontrolny_Yplus,0,0,-150),v100,z1, Szpikulec \WObj:=wobj0;
+        !
+        MoveAbsJ [[92.8574,-21.5652,40.2029,16.0263,71.0384,87.7623],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]]\NoEOffs, v100, z100, Szpikulec\WObj:=wobj0;
+    ENDPROC
+    
+    PROC wyznaczWobjStolikKontrolny()
+        
+        ! sprawdzamy czy to tryb manual
+        WHILE ((NOT OpMode()=OP_MAN_PROG) AND RobOS()) DO
+            TPErase;
+            TPWrite "Zzly tryb robota! Wymagany MANUAL";
+            TPWrite "Zmien tryb pracy na MANUAL i wcisnij START!";
+            STOP;    
+        ENDWHILE
+        !
+        MoveJ servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+        !wyznaczStolik;
+        def_wobjdata "wobjStolikKontrolny", Szpikulec, Def_StolikKontrolny_XY0, Def_StolikKontrolny_Xplus, Def_StolikKontrolny_Yplus, Dojazdowy_StolikKontrolny, 100, 20, wobjStolikKontrolny \aktualizuj;
+        !
+        MoveJ servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+        Stop;
+        
+    ENDPROC
+    
+    PROC wyznaczWobjMagazynKorkow()
+        
+        ! sprawdzamy czy to tryb manual
+        WHILE ((NOT OpMode()=OP_MAN_PROG) AND RobOS()) DO
+            TPErase;
+            TPWrite "Zzly tryb robota! Wymagany MANUAL";
+            TPWrite "Zmien tryb pracy na MANUAL i wcisnij START!";
+            STOP;    
+        ENDWHILE
+        !
+        !MoveJ servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+        robMovePlugHome;
+        !wyznaczMagazynek;
+        def_wobjdata "wobjMagazynKorkow", Szpikulec, Def_Magazynkorkow_XY0, Def_Magazynkorkow_Xplus, Def_Magazynkorkow_Yplus, Dojazdowy_MagazynKorkow, 45, 15, wobjMagazynKorkow \aktualizuj;
+        !
+        !MoveJ servicePos,v50,fine,laserCameraTool\WObj:=wobj0;
+        robMovePlugHome;
+        Stop;
+        
+    ENDPROC
+    
+    
+    ! tylko na testy
+    LOCAL PROC testWobj()
+        VAR robtarget tempDojazd;
+        
+        ! obliczamy uklad stolika na podstawie zebranych punktow
+        wobjStolikKontrolny.uframe.trans.x:=0;
+        wobjStolikKontrolny.uframe.trans.y:=0;
+        wobjStolikKontrolny.uframe.trans.z:=0;
+        
+        !wyznaczStolik;
+        def_wobjdata "wobjStolikKontrolny", Szpikulec, Def_StolikKontrolny_XY0, Def_StolikKontrolny_Xplus, Def_StolikKontrolny_Yplus, Dojazdowy_StolikKontrolny, 100, 20, wobjStolikKontrolny \aktualizuj;
+
+        
+        !calc_wobjdata Def_StolikKontrolny_XY0, Def_StolikKontrolny_Xplus, Def_StolikKontrolny_Yplus, wobjStolikKontrolny \wobjRefPoint:=wobj0;
+        !wobjStolikKontrolny.uframe:=DefFrame(Def_StolikKontrolny_XY0, Def_StolikKontrolny_Xplus, Def_StolikKontrolny_Yplus \Origin:=3);
+        !
+        ! przeliczamy kontrolnie punkty
+        Def2_StolikKontrolny_Xplus:=moveTargetToWobj(Def_StolikKontrolny_Xplus, wobjStolikKontrolny);
+        Def2_StolikKontrolny_XY0:=moveTargetToWobj(Def_StolikKontrolny_XY0, wobjStolikKontrolny);
+        Def2_StolikKontrolny_Xplus:=moveTargetToWobj(Def_StolikKontrolny_Xplus, wobjStolikKontrolny);
+        !
+        MoveAbsJ [[92.8574,-21.5652,40.2029,16.0263,71.0384,87.7623],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]]\NoEOffs, v100, z100, Szpikulec \WObj:=wobjStolikKontrolny;
+        MoveL RelTool(Def2_StolikKontrolny_Xplus,0,0,-150),v100,z1, Szpikulec \WObj:=wobjStolikKontrolny;
+        MoveL Def2_StolikKontrolny_Xplus,v50,fine,Szpikulec \WObj:=wobjStolikKontrolny;
+        WaitTime \InPos,1;
+        MoveL RelTool(Def2_StolikKontrolny_Xplus,0,0,-50),v100,z1, Szpikulec \WObj:=wobjStolikKontrolny;
+        !
+        MoveL RelTool(Def2_StolikKontrolny_XY0,0,0,-50),v100,z1, Szpikulec \WObj:=wobjStolikKontrolny;
+        MoveL Def2_StolikKontrolny_XY0, v50, fine, Szpikulec \WObj:=wobjStolikKontrolny;
+        WaitTime \InPos,1;
+        MoveL RelTool(Def2_StolikKontrolny_XY0,0,0,-50),v100,z1, Szpikulec \WObj:=wobjStolikKontrolny;
+        !
+        MoveL RelTool(Def2_StolikKontrolny_Yplus,0,0,-50),v100,z1, Szpikulec \WObj:=wobjStolikKontrolny;
+        MoveL Def2_StolikKontrolny_Yplus, v50, fine, Szpikulec \WObj:=wobjStolikKontrolny;
+        WaitTime \InPos,1;
+        MoveL RelTool(Def2_StolikKontrolny_Yplus,0,0,-150),v100,z1, Szpikulec \WObj:=wobjStolikKontrolny;
+        !
+        MoveAbsJ [[92.8574,-21.5652,40.2029,16.0263,71.0384,87.7623],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]]\NoEOffs, v100, z100, Szpikulec \WObj:=wobjStolikKontrolny;
+        !
+        Stop;
+        Stop;
+        EXIT;
+    ENDPROC
+    
+    
+    LOCAL PROC PozycjaObrotnikaPlaszcz()
+        ! wyznaczamy pozycje obrotnika na podstawie zebranych punktow
+        !wobjPKWPnew
+        VAR robtarget armCoat{8};
+        VAR bool resultPKWP;
+        VAR pose toAVS;
+        VAR pose delta;
+        VAR pos deltaAngle;
+        
+        !
+        armCoat{1}:=armCoat01;
+        armCoat{2}:=armCoat02;
+        armCoat{3}:=armCoat03;
+        armCoat{4}:=armCoat04;
+        armCoat{5}:=armCoat05;
+        armCoat{6}:=armCoat06;
+        armCoat{7}:=armCoat07;
+        armCoat{8}:=armCoat08;
+        
+        ! wyznaczamy pozycje obrotnika plaszcza
+        resultPKWP:=calibRotatorCalcFrame(wobjPKWPnew, armCoat, armCoatZ);
+        M8DM1_new2:=wobjPKWPnew;
+        
+        ! dokrecamy do pozycji optymalnej
+        wobjPKWPnew.uframe.rot:=dokrecPoZ(wobjPKWPnew.uframe.rot, orientOpt);
+        ! jeszcze raz by spawdzic efekt
+        wobjPKWPnew.uframe.rot:=dokrecPoZ(wobjPKWPnew.uframe.rot, orientOpt);
+        
+        ! przesowamy w dól bo zero powinno byc na dawnym poziomie tarczy ktorej nie ma
+        ! -13
+        wobjPKWPnew.uframe:=PoseMult(wobjPKWPnew.uframe,[[0,0,-13],[1,0,0,0]]);
+        
+        
+        ! dokrecamy do pozycji optymalnej
+        M8DM1_new2.uframe.rot:=dokrecPoZ(M8DM1_new2.uframe.rot, orientOptRotPlaszcz);
+        ! jeszcze raz by spawdzic efekt
+        M8DM1_new2.uframe.rot:=dokrecPoZ(M8DM1_new2.uframe.rot, orientOptRotPlaszcz);
+
+        ! przesowamy po osi z bo obrotnik jest duzo nizej
+        
+        !375+17=392
+        M8DM1_new2.uframe:=PoseMult(M8DM1_new2.uframe,[[0,0,-392],[1,0,0,0]]);
+        
+        
+        ! wyznaczamy WOBJ_wkladAVSnew
+        !WOBJ_plaszczAVSnew.ufmec:=WOBJ_wkladAVS.ufmec;
+        
+        toAVS:=PoseMult(PoseInv(M8DM1_new2.uframe),wobjPKWPnew.uframe);
+        WOBJ_plaszczAVSnew.uframe:=[[0,0,0],[1,0,0,0]];
+        WOBJ_plaszczAVSnew.oframe:=toAVS;
+        
+!            ! wyznaczamy ruznice pomiedzy starym ukladem a nowym
+!        delta:=PoseMult(PoseInv(PoseMult(M8DM1_orginal.uframe ,WOBJ_plaszczAVS.oframe)),PoseMult(M8DM1_new2.uframe ,WOBJ_plaszczAVSnew.oframe));
+        
+        
+!        deltaAngle.x:=EulerZYX(\X ,delta.rot);
+!        deltaAngle.y:=EulerZYX(\Y ,delta.rot);
+!        deltaAngle.z:=EulerZYX(\Z ,delta.rot);
+        
+        
+!        ErrWrite \I,"Wyznaczono poprawke ukladu obrotnika","PROC:PozycjaObrotnikaPKW:"
+!            \RL2:="Poprawka x = "+NumToStr(delta.trans.x,2)
+!            \RL3:="Poprawka y = "+NumToStr(delta.trans.y,2)
+!            \RL4:="Poprawka z = "+NumToStr(delta.trans.z,2);
+!        ErrWrite \I,"Wyznaczono poprawke katowa ukladu obrotnika","PROC:PozycjaObrotnikaPKW"
+!            \RL2:="Poprawka x(angle) = "+NumToStr(deltaAngle.x,1)
+!            \RL3:="Poprawka y(angle) = "+NumToStr(deltaAngle.y,1)
+!            \RL4:="Poprawka z(angle) = "+NumToStr(deltaAngle.z,1);
+        
+        
+        Stop;
+    ENDPROC
+    
+    LOCAL PROC PozycjaObrotnikaPKW()
+        ! wyznaczamy pozycje obrotnika na podstawie zebranych punktow
+        !wobjPKWPnew
+        VAR bool resultPKW;
+        VAR robtarget armIns{8};
+        VAR pose toAVS;
+        VAR pose delta;
+        VAR pos deltaAngle;
+        
+        !
+        armIns{1}:=armIns01;
+        armIns{2}:=armIns02;
+        armIns{3}:=armIns03;
+        armIns{4}:=armIns04;
+        armIns{5}:=armIns05;
+        armIns{6}:=armIns06;
+        armIns{7}:=armIns07;
+        armIns{8}:=armIns08;
+        
+        ! wyznaczamy uklad (wobjPKWnew) referencyjny zebrany na obrotiku PKW
+        resultPKW:=calibRotatorCalcFrame(wobjPKWnew, armIns, armInsZ);
+        
+        
+        M7DM1_new2:=wobjPKWnew;
+        
+        
+        
+        
+        
+        ! dokrecamy do orientacji optymalnej
+        wobjPKWnew.uframe.rot:=dokrecPoZ(wobjPKWnew.uframe.rot, orientOptRotPKW);
+        ! jeszcze raz by spawdzic efekt
+        wobjPKWnew.uframe.rot:=dokrecPoZ(wobjPKWnew.uframe.rot, orientOptRotPKW);
+        ! przesowamy w dól o 15mm bo zero powinno byc na dawnym poziomie tarczy ktorej nie ma
+        wobjPKWnew.uframe:=PoseMult(wobjPKWnew.uframe,[[0,0,-15],[1,0,0,0]]);
+        
+        
+        ! wyznaczamy rzeczywista pozycje obrotnika bo jest on nizej
+        M7DM1_new2.uframe.rot:=dokrecPoZ(M7DM1_new2.uframe.rot, orientOptRotPKW);
+        ! jeszcze raz by spawdzic efekt
+        M7DM1_new2.uframe.rot:=dokrecPoZ(M7DM1_new2.uframe.rot, orientOptRotPKW);
+
+        ! przesowamy po osi z bo obrotnik jest duzo nizej
+        !125
+        M7DM1_new2.uframe:=PoseMult(M7DM1_new2.uframe,[[0,0,-125],[1,0,0,0]]);
+    
+        ! wyznaczamy WOBJ_wkladAVSnew
+        !WOBJ_wkladAVSnew.ufmec:=WOBJ_wkladAVS.ufmec;
+        
+        toAVS:=PoseMult(PoseInv(M7DM1_new2.uframe),wobjPKWnew.uframe);
+        WOBJ_wkladAVSnew.uframe:=[[0,0,0],[1,0,0,0]];
+        WOBJ_wkladAVSnew.oframe:=toAVS;
+        
+        ! UWAGA:
+        ! uklady ktore obracaja sie z obrotnikiem nie uzwgledniaja uframe dlatego
+        ! .uframe:=[[0,0,0],[1,0,0,0]];
+        ! przesuniecia wstawimy do: oframe
+        
+!        ! wyznaczamy ruznice pomiedzy starym ukladem a nowym
+!        delta:=PoseMult(PoseInv(PoseMult(M7DM1_orginal.uframe ,WOBJ_wkladAVS.oframe)),PoseMult(M7DM1_new2.uframe ,WOBJ_wkladAVSnew.oframe));
+        
+        
+!        deltaAngle.x:=EulerZYX(\X ,delta.rot);
+!        deltaAngle.y:=EulerZYX(\Y ,delta.rot);
+!        deltaAngle.z:=EulerZYX(\Z ,delta.rot);
+        
+        
+!        ErrWrite \I,"Wyznaczono poprawke ukladu obrotnika","PROC:PozycjaObrotnikaPKW:"
+!            \RL2:="Poprawka x = "+NumToStr(delta.trans.x,2)
+!            \RL3:="Poprawka y = "+NumToStr(delta.trans.y,2)
+!            \RL4:="Poprawka z = "+NumToStr(delta.trans.z,2);
+!        ErrWrite \I,"Wyznaczono poprawke katowa ukladu obrotnika","PROC:PozycjaObrotnikaPKW"
+!            \RL2:="Poprawka x(angle) = "+NumToStr(deltaAngle.x,1)
+!            \RL3:="Poprawka y(angle) = "+NumToStr(deltaAngle.y,1)
+!            \RL4:="Poprawka z(angle) = "+NumToStr(deltaAngle.z,1);
+        
+        
+        
+        Stop;
+    ENDPROC
+    
+ENDMODULE

@@ -1,0 +1,144 @@
+MODULE WaitTimeouts(SYSMODULE, NOSTEPIN)
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ !!!!                        UWAGA                                 !!!!
+ !!!! MODULE WaitTimeouts uzywany jest w watkach:                  !!!!
+ !!!! robPlaszcz,                                                  !!!!
+ !!!! robWklad,                                                    !!!!
+ !!!! T_ROB1.                                                      !!!!
+ !!!! Wszelkie zmiany nalezy wykonywac w kazdym watku.             !!!!
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ 
+    PROC WaitTDI(VAR signaldi Signal,dionum Value,string Mes1\num MaxTime1\VAR signaldo SigWarning1,\num MaxTime2,\VAR signaldo SigError2\string Mes2\string Mes3\string resetError\inout bool setWarning1\inout bool setError2\VAR signaldi kriticalProcessDI|VAR signaldo kriticalProcessDO)
+        !  WaitTDI - funkcja z obsluga 2 ograniczen czasu i wywalaniu komunikatu plus sygnal cyfrowy. Uwaga czas MaxTime2 jest zliczany niezaleznie od czasu MaxTime1.
+        !           signaldi Signal - sygnal na który czekamy jak w WaitDI
+        !           dionum Value    - wartosc na jaka czekamy
+        !           \num MaxTime1   - czas po ktorym rejstrowane jest ostrzezenie i wystawiany jest sygnal SigT1
+        !           \signaldi SigWarning1 - sygnal ktory ma byc ustawiony po przekroczeniu czasu ostrzezenia MaxTime1
+        !           \num MaxTime2   - czas po ktorym rejstrowany jest blad i wystawiany jest sygnal SigT2
+        !           \signaldi SigError2 - sygnal ktory ma byc ustawiony po przekroczeniu czasu bledy MaxTime2
+        !           \string Mes1    - komunikat bledu po czasie MaxTime1 lub MaxTime2 (Opis na co czeka robot)
+        !           \string Mes2    - c.d. komunikatu bledu po czasie MaxTime1 lub MaxTime2 (Sygnal i stan na jaki czekamy)
+        !           \string Mes3    - c.d. komunikatu po czasie MaxTime1 lub MaxTime2 (Co powinno sie wydarzyc)
+        !           \string resetError - nawa procedury do kasowania bledu przed ponowieniem czekania na sygnal
+        !           \string setWarning - nazwa procedury wywolywanej do ustawienia stanowiska w stan ostrzegawczy (pomaranczowe swiatlo i alarm dzwiekowy)
+        !           \string setError   - nazwa procedury wywolywanej do ustawienia stanowiska w stan bledu (czerwone swiatlo i alarm dzwiekowy)
+        !           \signaldi kriticalProcess - sygnal ktorego stan na 1 daje informacje ze trwa krytyczny proces i nie mozemy zatrzymac robota
+        !           \signaldo kriticalProcess - sygnal ktorego stan na 1 daje informacje ze trwa krytyczny proces i nie mozemy zatrzymac robota
+        ! , NOSTEPIN, VIEWONLY
+
+        VAR byte ErrorIndex:=0;
+        VAR string errArg1:="";
+        VAR string errArg2:="";
+        VAR string errArg3:="";
+        VAR bool brakMaxTime1:=FALSE;
+        VAR bool brakMaxTime2:=FALSE;
+
+        ! przepisanie komunikatow jezeli wystepuja
+        errArg1:=Mes1;
+        IF Present(Mes2) errArg2:=Mes2;
+        IF Present(Mes3) errArg3:=Mes3;
+
+        WHILE (Signal<>Value) DO
+            ! CZEKAMY DO SKUTKU   
+            TPWrite "WaitTDI: "+errArg1;
+
+            ! sprawdzamy czy zdefiniowano czas MaxTime1
+            IF (Present(MaxTime1) AND MaxTime1>0) THEN
+                ! sprawdzamy czy mamy podpiete ostrzezenia
+                IF Present(SigWarning1)=FALSE AND Present(setWarning1)=FALSE THEN
+                    ErrWrite\W,"WaitTDI WARNING",errArg1\RL2:="  Brak jednego z parametrow: SigWarning1/setWarning1"\RL3:="  Popraw kod dodajac parametry.";
+                ENDIF
+                ErrorIndex:=10;
+                WaitDI Signal,Value\MaxTime:=MaxTime1;
+                ! sprawdzamy czy wystapil blad ERR_WAIT_MAXTIME
+                IF ErrorIndex=11 THEN
+                    ! przekroczono czas MaxTime1
+                    IF Present(SigWarning1) SetDO SigWarning1,1;
+                    IF Present(setWarning1) setWarning1:=TRUE;
+                    ErrWrite\W,"SIGNAL TIMEOUT WARNING",errArg1\RL2:="  "+errArg2\RL3:="  "+errArg3\RL4:="  (Info in WaitTDI)";
+                    IF Present(resetError)%resetError %;
+                    !Stop;
+                ENDIF
+            ELSE
+                brakMaxTime1:=TRUE;
+            ENDIF
+            ! sprawdzamy czy zdefiniowano czas MaxTime2
+            IF (Present(MaxTime2) AND MaxTime2>0) THEN
+                IF Present(SigError2)=FALSE AND Present(setError2)=FALSE THEN
+                    ErrWrite\W,"WaitTDI WARNING",errArg1\RL2:="  Brak jednego z parametrow: SigError2/setError2"\RL3:="  Popraw kod dodajac parametry.";
+                ENDIF
+                ErrorIndex:=20;
+                WaitDI Signal,Value\MaxTime:=MaxTime2;
+                ! sprawdzamy czy wystapil blad ERR_WAIT_MAXTIME
+                IF ErrorIndex=21 THEN
+                    ! przekroczono czas MaxTime2
+                    waittime 1;
+                    IF Present(SigError2) SetDO SigError2,1;
+                    IF Present(setError2) THEN
+                        setError2:=TRUE;
+                    ENDIF
+                    !waittime 2;
+!                    ErrWrite "SIGNAL TIMEOUT ERROR",errArg1\RL2:="  "+errArg2\RL3:="  "+errArg3\RL4:="  (Info in WaitTDI)";
+                    
+                    TPWrite "SIGNAL TIMEOUT ERROR: Usun przyczyne i wznow program.";
+                    TPWrite errArg1;
+                    TPWrite errArg2;
+                    TPWrite errArg3;
+                    TPWrite "  (Info in WaitTDI)";
+                    ErrWriteID 90;
+                    IF Present(kriticalProcessDI) THEN
+                        ! trwa proces krytyczny, nie mozemy zatrzymac programu
+                        IF kriticalProcessDI=1 THEN
+                            TPWrite "Trwa proces krytyczny. Zatrzymaj robota przyciskiem stop po zakonczeniu procesu.";
+                            WaitDI kriticalProcessDI,0;
+                        ENDIF
+                        Stop;
+                    ELSEIF Present(kriticalProcessDO) THEN
+                        ! trwa proces krytyczny, nie mozemy zatrzymac programu
+                        IF DOutput(kriticalProcessDO)=1 THEN
+                            TPWrite "Trwa proces krytyczny. Zatrzymaj robota przyciskiem stop po zakonczeniu procesu.";
+                            WaitDO kriticalProcessDO,0;
+                        ENDIF
+                        Stop;
+                    ELSE
+                        Stop;
+                    ENDIF
+
+                    IF Present(resetError)%resetError %;
+                ENDIF
+            ELSE
+                brakMaxTime2:=TRUE;
+            ENDIF
+            !
+            IF (brakMaxTime1 AND brakMaxTime2) THEN
+                TPWrite Mes1;
+                ErrWrite\I,"WAIT SIGNAL INFO",errArg1\RL2:="  "+errArg2\RL3:="  "+errArg3\RL4:="  (Info in WaitTDI)";
+                WaitDI Signal,Value;
+            ENDIF
+            !
+
+        ENDWHILE
+
+    ERROR
+        IF ERRNO=ERR_WAIT_MAXTIME THEN
+            TEST ErrorIndex
+            CASE 10:
+                !KOL: dodalem by nie logowac informacji o przekroczeniu czasu oczekiwania na rozkaz z AVS
+                SkipWarn;
+                ErrorIndex:=11;
+                TRYNEXT;
+            CASE 20:
+                !KOL: dodalem by nie logowac informacji o przekroczeniu czasu oczekiwania na rozkaz z AVS
+                SkipWarn;
+                ErrorIndex:=21;
+                TRYNEXT;
+            DEFAULT:
+                RAISE ;
+            ENDTEST
+        ELSE
+            RAISE ;
+        ENDIF
+
+    ENDPROC
+
+ENDMODULE
